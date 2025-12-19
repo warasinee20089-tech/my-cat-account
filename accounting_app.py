@@ -4,99 +4,105 @@ import sqlite3
 import plotly.express as px
 from datetime import datetime
 
-# --- 1. ตั้งค่าหน้าเว็บ (ธีมพาสเทลแมว) ---
-st.set_page_config(page_title="Meow Accounting (Private)", layout="wide", page_icon="🐱")
+# --- 1. การตั้งค่าหน้าเว็บ & สไตล์ (โทนชมพูพาสเทล) ---
+st.set_page_config(page_title="Cute Meow Finance", layout="wide", page_icon="🐱")
 
-# --- 2. ระบบ Login ส่วนตัว (แยกข้อมูลตามชื่อ) ---
-st.sidebar.markdown("### 🔐 เข้าสู่ระบบเมี๊ยวว")
-user_name = st.sidebar.text_input("กรอกชื่อเล่น (เพื่อแยกกระเป๋าเงิน)", placeholder="เช่น Cat_Owner")
-
-if not user_name:
-    st.markdown("<h1 style='text-align: center; color: #D87093;'>🐱 ยินดีต้อนรับสู่ Meow Accounting</h1>", unsafe_allow_html=True)
-    st.info("กรุณากรอกชื่อเล่นที่แถบด้านซ้าย เพื่อเริ่มใช้งานแบบส่วนตัวนะเมี๊ยวว!")
-    st.stop()
-
-# --- 3. ตกแต่งความสวยงาม (CSS พาสเทล) ---
-st.markdown(f"""
+st.markdown("""
     <style>
-    .main {{ background-color: #FFF5F7; }}
-    .stButton>button {{ background-color: #FFB7C5; color: white; border-radius: 20px; border: none; width: 100%; }}
-    .stButton>button:hover {{ background-color: #FFD1DC; color: #D87093; }}
-    h1, h2, h3 {{ color: #D87093; text-align: center; font-family: 'Kanit', sans-serif; }}
+    @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500&display=swap');
+    html, body, [class*="css"] { font-family: 'Kanit', sans-serif; }
+    .main { background-color: #FFF0F5; }
+    .stMetric { background-color: white; padding: 20px; border-radius: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .stButton>button { background: linear-gradient(135deg, #FFB7C5 0%, #FF99AC 100%); color: white; border-radius: 25px; border: none; height: 50px; font-size: 18px; width: 100%; }
+    .category-box { background-color: white; padding: 10px; border-radius: 15px; text-align: center; border: 2px solid #FFD1DC; }
+    h1, h2, h3 { color: #D87093; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. จัดการฐานข้อมูล (SQLite) ---
-conn = sqlite3.connect('cat_wallet_v4.db', check_same_thread=False)
+# --- 2. ระบบฐานข้อมูล ---
+conn = sqlite3.connect('meow_pro_v5.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS records 
-             (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, desc TEXT, 
-              income REAL DEFAULT 0, expense REAL DEFAULT 0)''')
+             (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, category TEXT, 
+              desc TEXT, income REAL DEFAULT 0, expense REAL DEFAULT 0, icon TEXT)''')
 conn.commit()
 
-# --- 5. เมนูการใช้งาน ---
-st.sidebar.success(f"สวัสดีคุณ {user_name} 🐾")
-menu = st.sidebar.radio("เลือกเมนูเมี๊ยวว", ["🐾 บันทึกรายรับ/จ่าย", "📊 สรุปภาพรวม"])
+# --- 3. ข้อมูลหมวดหมู่และไอคอน ---
+categories = {
+    "อาหาร": "🍔", "การเดินทาง": "🚌", "ของขวัญ": "🎁", "สื่อสาร": "📱", 
+    "เสื้อผ้า": "👗", "สุขภาพ": "💊", "ที่อยู่อาศัย": "🏠", "สังคม": "🥂",
+    "รายรับ": "💰", "อื่นๆ": "✨"
+}
 
-if menu == "🐾 บันทึกรายรับ/จ่าย":
-    st.markdown(f"<h1>🌸 บันทึกของ {user_name} 🌸</h1>", unsafe_allow_html=True)
-    
-    # ส่วนรับข้อมูล
-    with st.container():
-        col1, col2, col3, col4 = st.columns([2, 3, 2, 2])
-        with col1: d_in = st.date_input("วันที่", datetime.now())
-        with col2: desc_in = st.text_input("รายการ (เช่น ค่าปลาทู)")
-        with col3: type_in = st.selectbox("ประเภท", ["รายจ่าย", "รายรับ"])
-        with col4: amt_in = st.number_input("จำนวนเงิน (฿)", min_value=0.0, step=1.0)
-        
-        if st.button("🐾 บันทึกรายการลงกระเป๋า"):
-            if desc_in and amt_in > 0:
-                inc, exp = (amt_in, 0) if type_in == "รายรับ" else (0, amt_in)
-                c.execute("INSERT INTO records (user_id, date, desc, income, expense) VALUES (?,?,?,?,?)", 
-                          (user_name, d_in.strftime('%Y-%m-%d'), desc_in, inc, exp))
-                conn.commit()
-                st.toast(f"บันทึก {desc_in} เรียบร้อยแล้วเมี๊ยวว!", icon='✅')
-                st.rerun()
+# --- 4. ส่วน Sidebar (Login) ---
+st.sidebar.markdown(f"## 🐱 Meow Wallet")
+user_name = st.sidebar.text_input("กรอกชื่อผู้ใช้", placeholder="ชื่อของคุณ...")
 
-    st.write("---")
-    
-    # --- ส่วนแสดงตารางพร้อม "ยอดคงเหลือ" ---
-    st.markdown("### 📋 ตารางบันทึกของคุณ")
-    # ดึงข้อมูลจากฐานข้อมูล (เรียงตามวันที่จากเก่าไปใหม่เพื่อคำนวณยอดสะสม)
-    df = pd.read_sql(f"SELECT date as วันที่, desc as รายการ, income as รายรับ, expense as รายจ่าย FROM records WHERE user_id='{user_name}' ORDER BY date ASC, id ASC", conn)
-    
-    if not df.empty:
-        # คำนวณช่องคงเหลือ (Cumulative Sum)
-        df['คงเหลือ'] = df['รายรับ'].cumsum() - df['รายจ่าย'].cumsum()
-        
-        # จัดรูปแบบตัวเลขให้สวยงาม
-        df_styled = df.style.format({"รายรับ": "{:,.2f}", "รายจ่าย": "{:,.2f}", "คงเหลือ": "{:,.2f}"})
-        
-        # แสดงตาราง (กลับด้านให้รายการล่าสุดอยู่บนสุด)
-        st.table(df.iloc[::-1])
-    else:
-        st.info("ยังไม่มีข้อมูลบันทึกในชื่อนี้เมี๊ยวว ลองกรอกข้อมูลด้านบนดูนะ!")
+if not user_name:
+    st.markdown("<br><br><h1 style='text-align: center;'>🌸 ยินดีต้อนรับสู่แอปบันทึกรายรับรายจ่าย 🌸</h1>", unsafe_allow_html=True)
+    st.image("https://img.freepik.com/free-vector/cute-cat-working-laptop-cartoon-icon-illustration_138676-2503.jpg", width=300)
+    st.info("กรุณาเข้าสู่ระบบที่แถบด้านซ้ายเพื่อเริ่มใช้งานเมี๊ยวว!")
+    st.stop()
 
-elif menu == "📊 สรุปภาพรวม":
-    st.markdown(f"<h1>📈 ภาพรวมการเงินของ {user_name}</h1>", unsafe_allow_html=True)
+# --- 5. เมนูหลัก ---
+tab1, tab2, tab3 = st.tabs(["📝 บันทึกใหม่", "📊 สรุปรายงาน", "📜 ประวัติทั้งหมด"])
+
+with tab1:
+    st.markdown("### ✨ เพิ่มรายการใหม่")
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        date_in = st.date_input("วันที่", datetime.now())
+        type_in = st.radio("ประเภทรายการ", ["รายจ่าย", "รายรับ"], horizontal=True)
+        amt_in = st.number_input("จำนวนเงิน (฿)", min_value=0.0)
+        
+    with col2:
+        cat_in = st.selectbox("เลือกหมวดหมู่", list(categories.keys()))
+        desc_in = st.text_input("บันทึกช่วยจำ", placeholder="เช่น ส้มตำป้าประยงค์")
+        
+    if st.button("💖 บันทึกรายการ"):
+        if amt_in > 0:
+            icon = categories[cat_in]
+            inc, exp = (amt_in, 0) if type_in == "รายรับ" else (0, amt_in)
+            c.execute("INSERT INTO records (user_id, date, category, desc, income, expense, icon) VALUES (?,?,?,?,?,?,?)", 
+                      (user_name, date_in.strftime('%Y-%m-%d'), cat_in, desc_in, inc, exp, icon))
+            conn.commit()
+            st.success("บันทึกสำเร็จแล้วเมี๊ยวว!")
+            st.rerun()
+
+with tab2:
+    st.markdown(f"### 📈 ภาพรวมของ {user_name}")
     df = pd.read_sql(f"SELECT * FROM records WHERE user_id='{user_name}'", conn)
     
     if not df.empty:
-        t_inc, t_exp = df['income'].sum(), df['expense'].sum()
-        balance = t_inc - t_exp
+        t_inc = df['income'].sum()
+        t_exp = df['expense'].sum()
         
-        # แสดงยอดสรุปแบบ Card
-        m1, m2, m3 = st.columns(3)
-        m1.metric("💰 รายรับรวม", f"{t_inc:,.2f} ฿")
-        m2.metric("💸 รายจ่ายรวม", f"{t_exp:,.2f} ฿")
-        m3.metric("🐾 คงเหลือสุทธิ", f"{balance:,.2f} ฿")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("รายรับทั้งหมด", f"{t_inc:,.2f} ฿")
+        c2.metric("รายจ่ายทั้งหมด", f"-{t_exp:,.2f} ฿", delta_color="inverse")
+        c3.metric("คงเหลือสุทธิ", f"{t_inc-t_exp:,.2f} ฿")
         
-        # กราฟแท่งเปรียบเทียบ
-        fig = px.bar(df, x='date', y=['income', 'expense'], 
-                     title="กราฟรายวัน",
-                     labels={'value': 'จำนวนเงิน (฿)', 'date': 'วันที่', 'variable': 'ประเภท'},
-                     color_discrete_sequence=['#FFB7C5', '#98FB98'],
-                     barmode='group')
-        st.plotly_chart(fig, use_container_width=True)
+        st.write("---")
+        
+        # กราฟวงกลมแบ่งตามหมวดหมู่ (เหมือนในรูปที่คุณต้องการ)
+        exp_df = df[df['expense'] > 0].groupby('category')['expense'].sum().reset_index()
+        if not exp_df.empty:
+            fig = px.pie(exp_df, values='expense', names='category', 
+                         title='สัดส่วนรายจ่ายตามหมวดหมู่',
+                         color_discrete_sequence=px.colors.qualitative.Pastel)
+            st.plotly_chart(fig, use_container_width=True)
     else:
-        st.warning("ไม่มีข้อมูลให้ทำสรุปเมี๊ยวว ไปบันทึกข้อมูลก่อนนะ!")
+        st.info("ยังไม่มีข้อมูลสำหรับทำรายงาน")
+
+with tab3:
+    st.markdown("### 📜 ประวัติการบันทึก")
+    df_history = pd.read_sql(f"SELECT date as วันที่, icon as ไอคอน, category as หมวดหมู่, desc as รายการ, income as รายรับ, expense as รายจ่าย FROM records WHERE user_id='{user_name}' ORDER BY date DESC, id DESC", conn)
+    
+    if not df_history.empty:
+        # คำนวณยอดคงเหลือสะสม
+        df_calc = df_history.iloc[::-1].copy()
+        df_calc['คงเหลือ'] = df_calc['รายรับ'].cumsum() - df_calc['รายจ่าย'].cumsum()
+        st.dataframe(df_calc.iloc[::-1], use_container_width=True)
+    else:
+        st.write("ไม่มีประวัติการบันทึก")
