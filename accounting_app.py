@@ -3,142 +3,132 @@ import pandas as pd
 import sqlite3
 import plotly.express as px
 from datetime import datetime
+import time
 
-# --- 1. ตั้งค่าหน้าเว็บธีม Super Pastel & Cute ---
-st.set_page_config(page_title="My Pastel Meow Wallet", layout="wide", page_icon="🌈")
+# --- 1. การตั้งค่าหน้าเว็บ & สไตล์พาสเทลขั้นสุด ---
+st.set_page_config(page_title="Meow Wallet", layout="wide", page_icon="🐾")
 
-# เพิ่ม CSS ตกแต่งสไตล์ลูกกวาด (Candy Theme)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500&display=swap');
     html, body, [class*="css"] { font-family: 'Kanit', sans-serif; }
     
-    /* พื้นหลังไล่สีพาสเทล */
+    /* พื้นหลังพาสเทลแบบนุ่มนวล */
     .stApp {
-        background: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%);
-        background-attachment: fixed;
-    }
-    
-    /* ตกแต่ง Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: #FFF0F5 !important;
-        border-right: 5px solid #FFD1DC;
+        background: linear-gradient(135deg, #FFF5F7 0%, #F0F8FF 100%);
     }
 
-    /* ปุ่มกดสีชมพูฟรุ้งฟริ้ง */
-    .stButton>button {
-        background: linear-gradient(to right, #FFB7C5, #FFC0CB);
-        color: white;
-        border-radius: 30px;
-        border: 3px solid #FFFFFF;
-        box-shadow: 0 4px 15px rgba(255, 183, 197, 0.4);
+    /* ตกแต่งหัวข้อ Meow Wallet */
+    .main-title {
+        color: #FF69B4;
+        text-align: center;
+        font-size: 50px;
         font-weight: bold;
-        transition: 0.3s;
+        text-shadow: 3px 3px #FFE4E1;
+        margin-bottom: 10px;
+    }
+
+    /* ปุ่มกดมี Effect เมื่อเอาเมาส์วาง */
+    .stButton>button {
+        background: linear-gradient(45deg, #FFB7C5, #FF99AC);
+        color: white;
+        border-radius: 25px;
+        border: none;
+        padding: 10px 25px;
+        font-size: 20px;
+        transition: all 0.3s ease-in-out;
     }
     .stButton>button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 6px 20px rgba(255, 183, 197, 0.6);
+        transform: translateY(-5px) scale(1.05);
+        box-shadow: 0 10px 20px rgba(255, 153, 172, 0.4);
     }
 
-    /* การ์ดตัวเลขยอดเงิน */
+    /* ปรับแต่งตารางและกล่องตัวเลข */
     div[data-testid="stMetric"] {
-        background-color: rgba(255, 255, 255, 0.8);
-        border: 2px dashed #FFB7C5;
+        background: rgba(255, 255, 255, 0.6);
         border-radius: 20px;
-        padding: 15px;
+        border: 2px solid #FFD1DC;
     }
-    
-    h1 { color: #FF69B4; text-shadow: 2px 2px #FFE4E1; }
-    h3 { color: #DB7093; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 2. ระบบฐานข้อมูล ---
-conn = sqlite3.connect('pastel_meow_v6.db', check_same_thread=False)
+conn = sqlite3.connect('meow_final_v7.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS records 
              (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, category TEXT, 
               desc TEXT, income REAL DEFAULT 0, expense REAL DEFAULT 0)''')
 conn.commit()
 
-# --- 3. ส่วน Login ---
-st.sidebar.markdown("# 🎀 Meow Menu")
-user_name = st.sidebar.text_input("✨ ลงชื่อเจ้าของกระเป๋า", placeholder="พิมพ์ชื่อเล่นเมี๊ยว...")
+# --- 3. ส่วน Sidebar และการเข้าชื่อ ---
+st.sidebar.markdown("<h2 style='text-align: center; color: #D87093;'>🐾 Meow Menu</h2>", unsafe_allow_html=True)
+user_name = st.sidebar.text_input("กรอกชื่อเล่นเจ้าของเมี๊ยว", placeholder="เช่น มี๊ของน้องแมว")
 
 if not user_name:
-    st.markdown("<h1 style='text-align: center;'>🌈 My Pastel Meow Wallet 🐾</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center;'>บันทึกความสุขและการเงินไปกับน้องแมว</h3>", unsafe_allow_html=True)
-    st.image("https://img.freepik.com/free-vector/cute-cat-with-coin-cartoon-vector-icon-illustration_138676-2621.jpg", width=400)
-    st.balloons()
+    st.markdown("<div class='main-title'>Meow Wallet</div>", unsafe_allow_html=True)
+    # แมวดุ๊กดิ๊กตอนยังไม่เข้าชื่อ
+    st.markdown("<center><img src='https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJieW5pbmZ5bmZ5bmZ5bmZ5bmZ5bmZ5bmZ5bmZ5bmZ5bmZ5bmZ5JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1z/33p1YvO6S02Uolv0Hn/giphy.gif' width='300'></center>", unsafe_allow_html=True)
+    st.info("กรุณาใส่ชื่อที่แถบด้านซ้ายเพื่อเปิดกระเป๋าเงินนะเมี๊ยวว!")
     st.stop()
 
-# --- 4. เมนูหลัก (Tabs) ---
-tab1, tab2, tab3 = st.tabs(["🍓 บันทึกรายวัน", "🍭 สรุปยอดฟรุ้งฟริ้ง", "📖 สมุดบันทึก"])
+# --- 4. เมนู Tabs (เปลี่ยนชื่อตามสั่ง) ---
+tab1, tab2, tab3 = st.tabs(["🐱 บันทึกรายวัน", "📊 สรุปยอด", "📖 ประวัติ"])
 
 with tab1:
-    st.markdown(f"### 🧸 เพิ่มรายการใหม่ (คุณ {user_name})")
-    
-    # ส่วนกรอกข้อมูลแบบใหม่ตามใจคุณ
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns([1, 1.2])
     with col1:
-        date_in = st.date_input("📅 เลือกวันที่", datetime.now())
-        type_in = st.radio("✨ ประเภท", ["💸 รายจ่าย", "💰 รายรับ"], horizontal=True)
-        amt_in = st.number_input("💵 จำนวนเงิน (บาท)", min_value=0.0, step=0.5)
-        
+        # แมวขยับได้ในหน้าบันทึก
+        st.markdown("<img src='https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHR4MmtqbmFnd3JpZzB4bmN0Z2RzZ3R6Z3R6Z3R6Z3R6Z3R6Z3R6Z3R6Z3R6JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1z/JpGf6pGvUuM8e6pX5l/giphy.gif' width='200'>", unsafe_allow_html=True)
     with col2:
-        # --- ฟีเจอร์ที่คุณต้องการ: พิมพ์หมวดหมู่เองได้ ---
-        cat_in = st.text_input("🏷️ หมวดหมู่ (พิมพ์เองได้เลย)", placeholder="เช่น ค่าชานม, ค่าขนมแมว...")
-        desc_in = st.text_input("📝 บันทึกสั้นๆ", placeholder="รายละเอียดเพิ่มเติม...")
-        st.markdown("💡 *ตัวอย่าง: อาหาร, เดินทาง, ช้อปปิ้ง*")
-
-    if st.button("💖 บันทึกรายการเมี๊ยวว!"):
+        st.markdown(f"### ✨ บันทึกของ {user_name}")
+        date_in = st.date_input("เลือกวันที่", datetime.now())
+        type_in = st.radio("ประเภท", ["รายจ่าย", "รายรับ"], horizontal=True)
+        cat_in = st.text_input("🏷️ หมวดหมู่ (พิมพ์เองได้เลย)", placeholder="เช่น ค่าปลาทู, ค่าของเล่น")
+        amt_in = st.number_input("จำนวนเงิน (บาท)", min_value=0.0)
+        
+    if st.button("🐾 กดบันทึกเมี๊ยวว!"):
         if cat_in and amt_in > 0:
-            inc, exp = (amt_in, 0) if "รายรับ" in type_in else (0, amt_in)
+            inc, exp = (amt_in, 0) if type_in == "รายรับ" else (0, amt_in)
             c.execute("INSERT INTO records (user_id, date, category, desc, income, expense) VALUES (?,?,?,?,?,?)", 
-                      (user_name, date_in.strftime('%Y-%m-%d'), cat_in, desc_in, inc, exp))
+                      (user_name, date_in.strftime('%Y-%m-%d'), cat_in, "", inc, exp))
             conn.commit()
+            # เอฟเฟกต์ลูกเล่น
+            st.balloons() 
             st.snow()
-            st.success(f"บันทึก '{cat_in}' เรียบร้อยแล้วจ้า!")
+            st.success("บันทึกสำเร็จ! เก่งมากเจ้าทาส 🐈")
+            time.sleep(1)
             st.rerun()
-        else:
-            st.error("อย่าลืมพิมพ์หมวดหมู่และจำนวนเงินนะเมี๊ยวว!")
 
 with tab2:
-    st.markdown("### 📊 ภาพรวมการเงินสุดน่ารัก")
+    st.markdown("### 📊 สรุปยอด")
     df = pd.read_sql(f"SELECT * FROM records WHERE user_id='{user_name}'", conn)
     
     if not df.empty:
         c1, c2, c3 = st.columns(3)
-        total_in = df['income'].sum()
-        total_out = df['expense'].sum()
+        t_in, t_out = df['income'].sum(), df['expense'].sum()
+        c1.metric("💰 รายรับ", f"{t_in:,.2f}")
+        c2.metric("💸 รายจ่าย", f"{t_out:,.2f}")
+        c3.metric("🐾 คงเหลือ", f"{t_in-t_out:,.2f}")
         
-        c1.metric("🎀 รายรับ", f"{total_in:,.2f}")
-        c2.metric("🍬 รายจ่าย", f"{total_out:,.2f}")
-        c3.metric("🍦 คงเหลือ", f"{total_in - total_out:,.2f}")
-        
-        # กราฟพาสเทล
         st.write("---")
-        fig_pie = px.pie(df[df['expense']>0], values='expense', names='category', 
-                         title="🧁 สัดส่วนการใช้เงิน",
-                         hole=0.4,
-                         color_discrete_sequence=px.colors.qualitative.Pastel)
-        st.plotly_chart(fig_pie, use_container_width=True)
+        # กราฟวงกลมพาสเทล
+        fig = px.pie(df[df['expense']>0], values='expense', names='category', 
+                     title="🍩 สัดส่วนค่าใช้จ่าย",
+                     color_discrete_sequence=px.colors.qualitative.Pastel)
+        st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("ยังไม่มีข้อมูลให้สรุปนะเมี๊ยวว")
+        st.markdown("<center><img src='https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJ4MmtqbmFnd3JpZzB4bmN0Z2RzZ3R6Z3R6Z3R6Z3R6Z3R6Z3R6Z3R6JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1z/VbnUQpnihPSIgIXOnv/giphy.gif' width='200'></center>", unsafe_allow_html=True)
+        st.info("ยังไม่มีข้อมูลเลยเมี๊ยวว")
 
 with tab3:
-    st.markdown("### 📖 ประวัติการบันทึกทั้งหมด")
-    df_all = pd.read_sql(f"SELECT date as วันที่, category as หมวดหมู่, desc as รายการ, income as รายรับ, expense as รายจ่าย FROM records WHERE user_id='{user_name}' ORDER BY date DESC, id DESC", conn)
-    
-    if not df_all.empty:
-        # คำนวณยอดคงเหลือสะสมในตาราง
-        df_rev = df_all.iloc[::-1].copy()
-        df_rev['ยอดคงเหลือ'] = df_rev['รายรับ'].cumsum() - df_rev['รายจ่าย'].cumsum()
-        st.dataframe(df_rev.iloc[::-1], use_container_width=True)
+    st.markdown("### 📖 ประวัติการใช้เงิน")
+    df_history = pd.read_sql(f"SELECT date as วันที่, category as หมวดหมู่, income as รายรับ, expense as รายจ่าย FROM records WHERE user_id='{user_name}' ORDER BY date DESC, id DESC", conn)
+    if not df_history.empty:
+        st.dataframe(df_history, use_container_width=True)
     else:
-        st.write("สมุดบันทึกยังว่างเปล่า...")
+        st.write("สมุดยังว่างอยู่เลย...")
 
-# ตกแต่งท้ายเว็บ
+# สติ๊กเกอร์แมวขยับได้ที่แถบ Sidebar
 st.sidebar.markdown("---")
-st.sidebar.write("🧸 *เวอร์ชัน 6.0 พาสเทลหัวใจ*")
-st.sidebar.image("https://cdn-icons-png.flaticon.com/512/616/616430.png", width=100)
+st.sidebar.markdown("<center><img src='https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHR4MmtqbmFnd3JpZzB4bmN0Z2RzZ3R6Z3R6Z3R6Z3R6Z3R6Z3R6Z3R6JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1z/S67v8V0D0M8X5f3k6v/giphy.gif' width='100'></center>", unsafe_allow_html=True)
+st.sidebar.write("<center>Meow Wallet v7.0</center>", unsafe_allow_html=True)
