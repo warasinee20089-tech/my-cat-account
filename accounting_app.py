@@ -5,7 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 
-# --- 1. การตั้งค่าหน้าเว็บ Meow Wallet Ultimate (Add Savings Mode) ---
+# --- 1. การตั้งค่าหน้าเว็บ Meow Wallet Ultimate (Export Version) ---
 st.set_page_config(page_title="Meow Wallet Ultimate", layout="wide", page_icon="🐾")
 
 st.markdown("""
@@ -21,7 +21,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 2. ระบบฐานข้อมูล ---
-conn = sqlite3.connect('meow_ultimate_v8.db', check_same_thread=False)
+conn = sqlite3.connect('meow_ultimate_v9.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS records 
              (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, 
@@ -36,6 +36,7 @@ user_name = st.sidebar.text_input("ชื่อทาสแมว", placeholder=
 if not user_name:
     st.markdown("<div class='main-title'>🐾 Meow Wallet Ultimate</div>", unsafe_allow_html=True)
     st.markdown("<h1 style='text-align: center; font-size: 80px;'>💰✨</h1>", unsafe_allow_html=True)
+    st.info("กรุณาใส่ชื่อที่แถบด้านซ้ายเพื่อเปิดระบบจัดการเงินนะเมี๊ยวว!")
     st.stop()
 
 # --- 4. ดึงข้อมูลพื้นฐาน ---
@@ -54,7 +55,6 @@ with tab1:
     with col1:
         date_in = st.date_input("📅 วันที่", datetime.now())
         wallet_in = st.selectbox("👛 ช่องทาง", ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"])
-        # เพิ่มประเภท "เงินออม" ให้เลือกได้โดยตรง
         type_in = st.radio("🏷️ ประเภทรายการ", ["รายจ่าย 💸", "รายรับ 💰", "เงินออม 🐷"], horizontal=True)
     with col2:
         main_cats = ["ค่าอาหาร 🍱", "ค่าเครื่องดื่ม ☕", "ค่าของใช้ส่วนตัว 🧼", "ค่าสาธารณูปโภค ⚡", "ค่าเดินทาง 🚗", "ค่าท่องเที่ยว ✈️", "ค่าสันทนาการ 🎮", "ช้อปปิ้ง 🛍️", "ที่อยู่อาศัย 🏠", "เงินออมเป้าหมาย 🎯"]
@@ -67,7 +67,7 @@ with tab1:
             inc, exp, sav = 0, 0, 0
             if type_in == "รายรับ 💰": inc = amt_in
             elif type_in == "รายจ่าย 💸": exp = amt_in
-            else: sav = amt_in # ถ้าเลือกเงินออม
+            else: sav = amt_in
             
             c.execute("INSERT INTO records (user_id, date, wallet, category, sub_category, income, expense, savings) VALUES (?,?,?,?,?,?,?,?)", 
                       (user_name, date_in.strftime('%Y-%m-%d'), wallet_in, cat_in, sub_cat_in, inc, exp, sav))
@@ -80,7 +80,6 @@ with tab4:
     col_s1, col_s2 = st.columns(2)
     col_s1.metric("💰 เงินออมสะสมทั้งหมด", f"{total_save:,.2f} ฿")
     col_s2.metric("🍦 เงินเหลือใช้สุทธิ", f"{net_balance:,.2f} ฿")
-
     st.markdown("---")
     st.markdown("#### 📏 การจัดสรรตามกฎ 50/30/20")
     if total_in > 0:
@@ -93,7 +92,6 @@ with tab3:
     st.markdown("### 📊 Reports & Analytics")
     if not df.empty:
         st.markdown("<div class='report-card'><h4>🥧 สัดส่วนรายจ่าย vs เงินออม</h4>", unsafe_allow_html=True)
-        # สร้าง Pie Chart ที่รวมทั้งรายจ่ายและเงินออม
         labels = ['รายจ่าย', 'เงินออม']
         values = [total_out, total_save]
         fig = px.pie(names=labels, values=values, hole=0.5, color_discrete_sequence=['#EF553B', '#FF69B4'])
@@ -101,13 +99,12 @@ with tab3:
         st.markdown("</div>", unsafe_allow_html=True)
 
 with tab2:
-    st.markdown("### 🏦 ยอดเงินในแต่ละช่องทาง")
+    st.markdown("### 🏦 ยอดเงินคงเหลือ")
     df_w = pd.read_sql(f"SELECT wallet, SUM(income) as inc, SUM(expense) as exp, SUM(savings) as sav FROM records WHERE user_id='{user_name}' GROUP BY wallet", conn)
     cols = st.columns(3)
     wallets = ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"]
     for i, w_name in enumerate(wallets):
         row = df_w[df_w['wallet'] == w_name]
-        # ยอดคงเหลือในกระเป๋า = รายรับ - (รายจ่าย + เงินออมที่ดึงออกไปเก็บ)
         bal = row['inc'].sum() - row['exp'].sum() - row['sav'].sum() if not row.empty else 0.0
         cols[i].metric(w_name, f"{bal:,.2f} ฿")
 
@@ -116,6 +113,18 @@ with tab5:
     if not df.empty:
         df_display = df.sort_values(by=['date', 'id'], ascending=[False, False])
         st.dataframe(df_display[['date', 'wallet', 'category', 'sub_category', 'income', 'expense', 'savings']], use_container_width=True)
+        
+        # --- ฟังก์ชันใหม่: ปุ่มดาวน์โหลดข้อมูล ---
+        st.markdown("---")
+        st.markdown("#### 💾 สำหรับผู้สร้าง: สำรองข้อมูล")
+        csv = df_display.to_csv(index=False).encode('utf-8-sig')
+        st.download_button(
+            label="📥 ดาวน์โหลดประวัติทั้งหมดเป็นไฟล์ CSV",
+            data=csv,
+            file_name=f'meow_wallet_backup_{user_name}_{datetime.now().strftime("%Y%m%d")}.csv',
+            mime='text/csv',
+        )
+        st.caption("แนะนำให้ดาวน์โหลดเก็บไว้เป็นระยะ เพื่อป้องกันข้อมูลหายกรณีระบบ Cloud รีเซ็ตเมี๊ยวว!")
 
 st.sidebar.markdown("---")
-st.sidebar.write("🐱 *Meow Wallet v8.0 (Savings Mode)*")
+st.sidebar.write("🐱 *Meow Wallet v9.0 (Data Backup)*")
