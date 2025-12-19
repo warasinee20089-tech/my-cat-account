@@ -4,65 +4,63 @@ import sqlite3
 import plotly.express as px
 from datetime import datetime
 
-# --- 1. ตั้งค่าหน้าเว็บให้มุ้งมิ้ง (Meow Wallet) ---
+# --- 1. ตั้งค่าหน้าเว็บ Meow Wallet ---
 st.set_page_config(page_title="Meow Wallet", layout="wide", page_icon="🐾")
 
 def play_audio(url):
-    """ฟังก์ชันสำหรับเล่นเสียง"""
+    """ฟังก์ชันเล่นเสียง"""
     st.markdown(f'<audio autoplay><source src="{url}" type="audio/mp3"></audio>', unsafe_allow_html=True)
 
-# ปรับปรุง CSS ให้พาสเทลและปุ่มน่ารัก
+# ปรับแต่งความน่ารักด้วยสีพาสเทล
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500&display=swap');
     html, body, [class*="css"] { font-family: 'Kanit', sans-serif; }
-    .stApp { background-color: #FFF0F5; }
+    .stApp { background-color: #FFF5F7; }
     .main-title { color: #FF69B4; text-align: center; font-size: 55px; font-weight: bold; text-shadow: 3px 3px #FFE4E1; padding: 10px; }
     .stButton>button { 
         background: linear-gradient(45deg, #FFB7C5, #FF99AC); 
         color: white; border-radius: 30px; border: 3px solid #FFFFFF; 
-        font-size: 20px; font-weight: bold; box-shadow: 0 4px 15px rgba(255, 183, 197, 0.4);
-        width: 100%;
+        font-size: 20px; font-weight: bold; width: 100%; height: 50px;
     }
-    .stButton>button:hover { transform: scale(1.05); color: white !important; }
+    .stButton>button:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(255, 153, 172, 0.4); color: white !important; }
     div[data-testid="stMetric"] { background: white; border-radius: 20px; border: 2px solid #FFD1DC; padding: 15px; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 2. ระบบฐานข้อมูล ---
-conn = sqlite3.connect('meow_wallet_final.db', check_same_thread=False)
+conn = sqlite3.connect('meow_stable_vfinal.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS records 
              (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, category TEXT, 
               income REAL DEFAULT 0, expense REAL DEFAULT 0)''')
 conn.commit()
 
-# --- 3. ส่วน Login และน้องแมวขยับได้ (หน้าแรก) ---
+# --- 3. ส่วนชื่อเจ้าของ และน้องแมวดุ๊กดิ๊กหน้าแรก ---
 st.sidebar.markdown("<h2 style='text-align: center; color: #D87093;'>🐈 Meow Menu</h2>", unsafe_allow_html=True)
-user_name = st.sidebar.text_input("ชื่อทาสแมวคนเก่ง", placeholder="กรอกชื่อที่นี่เมี๊ยว...")
+user_name = st.sidebar.text_input("ชื่อทาสแมว", placeholder="กรอกชื่อตรงนี้จ้า...")
 
 if not user_name:
     st.markdown("<div class='main-title'>Meow Wallet</div>", unsafe_allow_html=True)
-    # แมวขยับได้ 1: แมวอ้วนเต้น (หน้าแรก)
-    st.markdown("<center><img src='https://media.tenor.com/On7_5rl7S4AAAAAi/loading-cat.gif' width='250'></center>", unsafe_allow_html=True)
-    st.markdown("<h4 style='text-align: center; color: #DB7093;'>กรุณาใส่ชื่อที่แถบด้านซ้ายเพื่อเปิดกระเป๋าเงินนะเมี๊ยวว!</h4>", unsafe_allow_html=True)
+    # ใช้ลิงก์แมวขยับได้ที่เสถียรที่สุดจาก Cloudinary
+    st.markdown("<center><img src='https://res.cloudinary.com/dz97rq9nm/image/upload/v1683456789/cat-space.gif' width='300'></center>", unsafe_allow_html=True)
+    st.markdown("<h4 style='text-align: center; color: #DB7093;'>ใส่ชื่อที่แถบด้านซ้ายเพื่อเริ่มออมเงินนะเมี๊ยวว!</h4>", unsafe_allow_html=True)
     play_audio("https://www.myinstants.com/media/sounds/kawaii-desu-ne.mp3")
     st.stop()
 
-# --- 4. เมนูหลัก (Tabs) ---
-tab1, tab2, tab3 = st.tabs(["🍓 บันทึกรายวัน", "🍩 สรุปยอด", "📖 ประวัติ"])
+# --- 4. เมนู Tabs ---
+tab1, tab2, tab3 = st.tabs(["📝 บันทึกรายวัน", "📊 สรุปยอด", "📖 ประวัติ"])
 
 with tab1:
     col1, col2 = st.columns([1, 1.5])
     with col1:
-        # แมวขยับได้ 2: แมวสีขาวเต้น (หน้าบันทึก)
-        st.markdown("<img src='https://media.tenor.com/ZbeSeD9N69EAAAAi/peachcat-cat.gif' width='220'>", unsafe_allow_html=True)
+        # แมวขยับได้หน้าบันทึก (น้องแมวเต้นเขย่าพุง)
+        st.markdown("<img src='https://res.cloudinary.com/dz97rq9nm/image/upload/v1683456789/cute-cat-dance.gif' width='220'>", unsafe_allow_html=True)
     with col2:
-        st.markdown(f"### ✨ สมุดบันทึกของ {user_name}")
-        date_in = st.date_input("เลือกวันที่", datetime.now())
+        st.markdown(f"### ✨ บันทึกของ {user_name}")
+        date_in = st.date_input("วันที่", datetime.now())
         type_in = st.radio("ประเภทเงิน", ["รายจ่าย 💸", "รายรับ 💰"], horizontal=True)
-        # พิมพ์หมวดหมู่เองได้ตามใจชอบ
-        cat_in = st.text_input("🏷️ หมวดหมู่ (พิมพ์เองได้เลย)", placeholder="เช่น ค่าชานม, ซื้อของเล่นแมว")
+        cat_in = st.text_input("🏷️ หมวดหมู่", placeholder="เช่น ค่าปลาทู, ค่ากาแฟ")
         amt_in = st.number_input("จำนวนเงิน (บาท)", min_value=0.0, step=1.0)
         
     if st.button("🐾 บันทึกรายการเมี๊ยวว!"):
@@ -72,11 +70,9 @@ with tab1:
                       (user_name, date_in.strftime('%Y-%m-%d'), cat_in, inc, exp))
             conn.commit()
             
-            # เสียงแมวร้องและเอฟเฟกต์
             play_audio("https://www.myinstants.com/media/sounds/cat-meow.mp3")
             st.balloons()
-            st.snow()
-            st.success(f"บันทึก '{cat_in}' เรียบร้อยแล้วจ้า!")
+            st.success(f"บันทึก '{cat_in}' เรียบร้อยแล้วเมี๊ยวว!")
             st.rerun()
 
 with tab2:
@@ -89,24 +85,18 @@ with tab2:
         c2.metric("🍭 รายจ่าย", f"{t_out:,.2f}")
         c3.metric("🍦 คงเหลือ", f"{t_in-t_out:,.2f}")
         
-        # กราฟวงกลมพาสเทล
         fig = px.pie(df[df['expense']>0], values='expense', names='category', 
                      hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
         st.plotly_chart(fig, use_container_width=True)
     else:
-        # แมวขยับได้ 3: แมวร้องไห้ (กรณีไม่มีข้อมูล)
-        st.markdown("<center><img src='https://media.tenor.com/vH_fMv7v2mEAAAAi/cat-cute.gif' width='150'></center>", unsafe_allow_html=True)
         st.info("ยังไม่มีข้อมูลนะเมี๊ยวว")
 
 with tab3:
     st.markdown("### 📖 ประวัติการบันทึก")
     df_h = pd.read_sql(f"SELECT date as วันที่, category as หมวดหมู่, income as รายรับ, expense as รายจ่าย FROM records WHERE user_id='{user_name}' ORDER BY date DESC", conn)
-    if not df_h.empty:
-        st.dataframe(df_h, use_container_width=True)
-    else:
-        st.write("สมุดบันทึกยังว่างเปล่า...")
+    st.dataframe(df_h, use_container_width=True)
 
-# Sidebar น้องแมวดุ๊กดิ๊กด้านล่าง
+# แถบด้านข้างตกแต่งเพิ่ม
 st.sidebar.markdown("---")
-st.sidebar.markdown("<center><img src='https://media.tenor.com/v8S7_6S9vG8AAAAi/cute-cat.gif' width='100'></center>", unsafe_allow_html=True)
+st.sidebar.markdown("<center><img src='https://media.tenor.com/On7_5rl7S4AAAAAi/loading-cat.gif' width='80'></center>", unsafe_allow_html=True)
 st.sidebar.write("<center>Meow Wallet 💖</center>", unsafe_allow_html=True)
