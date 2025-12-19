@@ -4,7 +4,7 @@ import sqlite3
 import plotly.express as px
 from datetime import datetime
 
-# --- 1. หน้าตั้งค่าและสไตล์ ---
+# --- 1. ตั้งค่าหน้าเว็บ ---
 st.set_page_config(page_title="Meow Wallet", layout="wide", page_icon="🐾")
 
 st.markdown("""
@@ -17,57 +17,47 @@ st.markdown("""
     }
     .main-title { color: #FF69B4; text-align: center; font-size: 40px; font-weight: bold; padding: 15px; }
     div[data-testid="stMetric"] { background: white !important; border-radius: 15px; border: 2px solid #FFD1DC !important; padding: 15px; }
+    .stButton>button { border-radius: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. ระบบฐานข้อมูล (ใช้ชื่อใหม่กันสับสนและล็อคระบบ) ---
-def init_db():
-    conn = sqlite3.connect('meow_permanent_v1.db', check_same_thread=False)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS records 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, 
-                  wallet TEXT, category TEXT, sub_category TEXT,
-                  income REAL DEFAULT 0, expense REAL DEFAULT 0, savings REAL DEFAULT 0)''')
-    conn.commit()
+# --- 2. ฐานข้อมูล (เสถียรสุด) ---
+def get_db():
+    conn = sqlite3.connect('meow_wallet_v19.db', check_same_thread=False)
+    conn.row_factory = sqlite3.Row
     return conn
 
-conn = init_db()
+conn = get_db()
+c = conn.cursor()
+c.execute('''CREATE TABLE IF NOT EXISTS records 
+             (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, 
+              wallet TEXT, category TEXT, sub_category TEXT,
+              income REAL DEFAULT 0, expense REAL DEFAULT 0, savings REAL DEFAULT 0)''')
+conn.commit()
 
-# --- 3. ระบบ Login ---
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-if 'user_name' not in st.session_state:
-    st.session_state.user_name = ""
+# --- 3. ระบบ Session ---
+if 'logged_in' not in st.session_state: st.session_state.logged_in = False
+if 'user_name' not in st.session_state: st.session_state.user_name = ""
 
 if not st.session_state.logged_in:
     st.markdown("<div class='main-title'>🐾 Meow Wallet 🐾</div>", unsafe_allow_html=True)
     col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
     with col_l2:
-        st.markdown("<h1 style='text-align: center; font-size: 80px;'>🐱</h1>", unsafe_allow_html=True)
-        name_input = st.text_input("ชื่อทาสแมวของคุณ:", placeholder="กรอกชื่อเพื่อล็อคอิน...", key="login_name")
+        st.markdown("<h1 style='text-align: center;'>🐱</h1>", unsafe_allow_html=True)
+        name_in = st.text_input("ชื่อทาสแมว:", key="login_name")
         if st.button("เข้าสู่ระบบ 🐾", use_container_width=True):
-            if name_input.strip():
-                st.session_state.user_name = name_input.strip()
+            if name_in.strip():
+                st.session_state.user_name = name_in.strip()
                 st.session_state.logged_in = True
                 st.rerun()
     st.stop()
 
 # --- 4. ดึงข้อมูล ---
 user_name = st.session_state.user_name
-# ดึงข้อมูลมาใส่ DataFrame และเตรียมตัวแปรให้พร้อมเสมอเพื่อป้องกัน Error
-try:
-    df = pd.read_sql(f"SELECT * FROM records WHERE user_id='{user_name}'", conn)
-except:
-    df = pd.DataFrame(columns=['id', 'user_id', 'date', 'wallet', 'category', 'sub_category', 'income', 'expense', 'savings'])
+df = pd.read_sql(f"SELECT * FROM records WHERE user_id='{user_name}'", conn)
 
-total_in = df['income'].sum() if not df.empty else 0
-total_out = df['expense'].sum() if not df.empty else 0
-total_save = df['savings'].sum() if not df.empty else 0
-
-st.markdown(f"<div class='main-title'>🐾 Meow Wallet ของ {user_name}</div>", unsafe_allow_html=True)
-
-# --- 5. เมนู Tabs ---
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "🎯 การออม", "📖 ประวัติ"])
+# --- 5. Tabs ---
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "🎯 การออม", "📖 ประวัติและแก้ไข"])
 
 with tab1:
     st.markdown("### ✨ เพิ่มรายการใหม่")
@@ -77,67 +67,89 @@ with tab1:
         wallet_in = st.selectbox("👛 ช่องทาง", ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"])
         type_in = st.radio("🏷️ ประเภท", ["รายจ่าย 💸", "รายรับ 💰", "เงินออม 🐷"], horizontal=True)
     with col2:
-        if type_in == "รายรับ 💰":
-            cat_list = ["เงินเดือน 💸", "โบนัส 🎁", "ขายของ 🛍️", "อื่นๆ ➕"]
-        elif type_in == "รายจ่าย 💸":
-            cat_list = ["ค่าอาหาร 🍱", "เครื่องดื่ม ☕", "เดินทาง 🚗", "ช้อปปิ้ง 🛍️", "อื่นๆ ➕"]
-        else:
-            cat_list = ["ออมระยะยาว 🏦", "ออมฉุกเฉิน 🚑", "อื่นๆ ➕"]
-        
-        selected_cat = st.selectbox("📁 หมวดหมู่", cat_list)
-        final_category = selected_cat
-        if selected_cat == "อื่นๆ ➕":
-            final_category = st.text_input("✍️ ระบุหมวดหมู่เอง")
-            
-        sub_cat_in = st.text_input("📝 รายละเอียด")
-        amt_in = st.number_input("💵 จำนวนเงิน (บาท)", min_value=0.0, step=1.0)
+        cat_map = {
+            "รายรับ 💰": ["เงินเดือน 💸", "โบนัส 🎁", "ขายของ 🛍️", "อื่นๆ ➕"],
+            "รายจ่าย 💸": ["ค่าอาหาร 🍱", "เครื่องดื่ม ☕", "เดินทาง 🚗", "ช้อปปิ้ง 🛍️", "อื่นๆ ➕"],
+            "เงินออม 🐷": ["ออมระยะยาว 🏦", "ออมฉุกเฉิน 🚑", "อื่นๆ ➕"]
+        }
+        selected_cat = st.selectbox("📁 หมวดหมู่", cat_map[type_in])
+        final_cat = st.text_input("✍️ ระบุหมวดหมู่เอง") if selected_cat == "อื่นๆ ➕" else selected_cat
+        sub_cat = st.text_input("📝 รายละเอียด")
+        amt = st.number_input("💵 จำนวนเงิน", min_value=0.0, step=1.0)
 
-    if st.button("💖 บันทึกรายการสำเร็จ!", use_container_width=True):
-        if amt_in > 0 and final_category:
-            inc, exp, sav = (amt_in, 0, 0) if type_in == "รายรับ 💰" else (0, amt_in, 0) if type_in == "รายจ่าย 💸" else (0, 0, amt_in)
-            c = conn.cursor()
+    if st.button("💖 บันทึกรายการ", use_container_width=True):
+        if amt > 0 and final_cat:
+            inc, exp, sav = (amt,0,0) if type_in=="รายรับ 💰" else (0,amt,0) if type_in=="รายจ่าย 💸" else (0,0,amt)
             c.execute("INSERT INTO records (user_id, date, wallet, category, sub_category, income, expense, savings) VALUES (?,?,?,?,?,?,?,?)", 
-                      (user_name, date_in.strftime('%Y-%m-%d'), wallet_in, final_category, sub_cat_in, inc, exp, sav))
+                      (user_name, date_in.strftime('%Y-%m-%d'), wallet_in, final_cat, sub_cat, inc, exp, sav))
             conn.commit()
-            st.success("บันทึกเรียบร้อยเมี๊ยวว!")
+            st.success("บันทึกสำเร็จ!")
             st.rerun()
 
+with tab5:
+    st.markdown("### 📖 ประวัติและจัดการรายการ")
+    if not df.empty:
+        # แสดงตารางหลักก่อน
+        df_display = df.sort_values(by='id', ascending=False)
+        st.dataframe(df_display.drop(columns=['user_id']), use_container_width=True)
+        
+        st.markdown("---")
+        st.markdown("#### 🛠️ แก้ไขหรือลบรายการ")
+        selected_id = st.selectbox("เลือก ID รายการที่ต้องการจัดการ:", df_display['id'].tolist())
+        
+        if selected_id:
+            row = df[df['id'] == selected_id].iloc[0]
+            col_e1, col_e2 = st.columns(2)
+            with col_e1:
+                new_date = st.date_input("แก้ไขวันที่", datetime.strptime(row['date'], '%Y-%m-%d'))
+                new_amt = st.number_input("แก้ไขจำนวนเงิน", value=float(max(row['income'], row['expense'], row['savings'])))
+            with col_e2:
+                new_sub = st.text_input("แก้ไขรายละเอียด", value=row['sub_category'])
+                
+            c_btn1, c_btn2 = st.columns(2)
+            if c_btn1.button("✅ ยืนยันการแก้ไข", use_container_width=True):
+                # ตรวจสอบว่าเป็นประเภทไหนเพื่อ Update ให้ถูก column
+                if row['income'] > 0: col, vals = "income", (new_amt, 0, 0)
+                elif row['expense'] > 0: col, vals = "expense", (0, new_amt, 0)
+                else: col, vals = "savings", (0, 0, new_amt)
+                
+                c.execute(f"UPDATE records SET date=?, income=?, expense=?, savings=?, sub_category=? WHERE id=?", 
+                          (new_date.strftime('%Y-%m-%d'), vals[0], vals[1], vals[2], new_sub, selected_id))
+                conn.commit()
+                st.success("แก้ไขข้อมูลเรียบร้อย!")
+                st.rerun()
+                
+            if c_btn2.button("🗑️ ลบรายการนี้", use_container_width=True):
+                c.execute("DELETE FROM records WHERE id=?", (selected_id,))
+                conn.commit()
+                st.warning("ลบรายการแล้ว!")
+                st.rerun()
+    else:
+        st.info("ยังไม่มีข้อมูลเมี๊ยวว")
+
+# หน้าอื่นๆ ปรับปรุงให้ดึงค่า total ใหม่เสมอ
+total_in, total_out, total_save = df['income'].sum(), df['expense'].sum(), df['savings'].sum()
+
 with tab2:
-    st.markdown("### 🏦 ยอดคงเหลือรายกระเป๋า")
-    c1, c2, c3 = st.columns(3)
-    for i, w_name in enumerate(["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"]):
-        w_df = df[df['wallet'] == w_name]
+    st.markdown("### 🏦 ยอดคงเหลือ")
+    c_w1, c_w2, c_w3 = st.columns(3)
+    for i, w in enumerate(["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"]):
+        w_df = df[df['wallet'] == w]
         bal = w_df['income'].sum() - w_df['expense'].sum() - w_df['savings'].sum() if not w_df.empty else 0.0
-        [c1, c2, c3][i].metric(w_name, f"{bal:,.2f} ฿")
+        [c_w1, c_w2, c_w3][i].metric(w, f"{bal:,.2f} ฿")
 
 with tab3:
-    st.markdown("### 📊 วิเคราะห์ภาพรวม")
-    if not df.empty and total_in + total_out + total_save > 0:
-        fig = px.bar(x=['รายรับ', 'รายจ่าย', 'เงินออม'], y=[total_in, total_out, total_save], 
-                     labels={'x':'ประเภท', 'y':'จำนวนเงิน'}, color=['รายรับ', 'รายจ่าย', 'เงินออม'],
-                     color_discrete_map={'รายรับ':'#4CAF50', 'รายจ่าย':'#FF5252', 'เงินออม':'#FF69B4'})
+    st.markdown("### 📊 วิเคราะห์")
+    if not df.empty:
+        fig = px.pie(names=['รายจ่าย', 'เงินออม'], values=[total_out, total_save], hole=0.4, color_discrete_sequence=['#FF5252', '#FF69B4'])
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("ยังไม่มีข้อมูลสำหรับวิเคราะห์เมี๊ยวว")
 
 with tab4:
-    st.markdown("### 🎯 การออมเงิน")
-    st.metric("💰 ยอดเงินออมรวม", f"{total_save:,.2f} ฿")
+    st.markdown("### 🎯 การออม")
+    st.metric("เงินออมสะสม", f"{total_save:,.2f} ฿")
     if total_in > 0:
-        prog = min(total_save / total_in, 1.0)
-        st.progress(prog)
-        st.write(f"ออมไปแล้ว {prog*100:.1f}% ของรายได้")
-    else:
-        st.write("บันทึกรายรับเพื่อดูสถานะการออมนะเมี๊ยวว")
-
-with tab5:
-    st.markdown("### 📖 ประวัติการทำรายการ")
-    if not df.empty:
-        st.dataframe(df.sort_values(by='id', ascending=False), use_container_width=True)
-        csv = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📥 ดาวน์โหลด CSV", data=csv, file_name=f'meow_{user_name}.csv', use_container_width=True)
-    else:
-        st.write("ไม่มีข้อมูลประวัติเมี๊ยวว")
+        st.progress(min(total_save/total_in, 1.0))
+        st.write(f"{(total_save/total_in)*100:.1f}% ของรายรับ")
 
 st.markdown("---")
 if st.button("🚪 ออกจากระบบ"):
