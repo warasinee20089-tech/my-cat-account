@@ -16,12 +16,12 @@ st.markdown("""
         color: #2D2D2D !important;
     }
     .main-title { color: #FF69B4; text-align: center; font-size: 40px; font-weight: bold; padding: 15px; }
-    div[data-testid="stMetric"] { background: white !important; border-radius: 15px; border: 2px solid #FFD1DC !important; }
+    div[data-testid="stMetric"] { background: white !important; border-radius: 15px; border: 2px solid #FFD1DC !important; padding: 15px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. ฐานข้อมูล ---
-conn = sqlite3.connect('meow_wallet_v16.db', check_same_thread=False)
+# --- 2. ฐานข้อมูล v17 ---
+conn = sqlite3.connect('meow_wallet_v17.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS records 
              (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, 
@@ -40,7 +40,7 @@ if not st.session_state.logged_in:
     col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
     with col_l2:
         st.markdown("<h1 style='text-align: center;'>🐱</h1>", unsafe_allow_html=True)
-        name_input = st.text_input("ชื่อทาสแมว:", key="login_name")
+        name_input = st.text_input("ชื่อทาสแมวของคุณ:", key="login_name")
         if st.button("เข้าสู่ระบบ 🐾", use_container_width=True):
             if name_input.strip():
                 st.session_state.user_name = name_input
@@ -51,12 +51,17 @@ if not st.session_state.logged_in:
 # --- 4. ดึงข้อมูล ---
 user_name = st.session_state.user_name
 df = pd.read_sql(f"SELECT * FROM records WHERE user_id='{user_name}'", conn)
+total_in = df['income'].sum() if not df.empty else 0
+total_out = df['expense'].sum() if not df.empty else 0
+total_save = df['savings'].sum() if not df.empty else 0
+
+st.markdown(f"<div class='main-title'>🐾 Meow Wallet ของ {user_name}</div>", unsafe_allow_html=True)
 
 # --- 5. Tabs ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "🎯 การออม", "📖 ประวัติ"])
 
 with tab1:
-    st.markdown(f"### ✨ บันทึกรายการ (คุณ {user_name})")
+    st.markdown("### ✨ เพิ่มรายการใหม่")
     col1, col2 = st.columns(2)
     with col1:
         date_in = st.date_input("📅 วันที่", datetime.now())
@@ -69,57 +74,40 @@ with tab1:
             cat_list = ["ค่าอาหาร 🍱", "เครื่องดื่ม ☕", "เดินทาง 🚗", "ช้อปปิ้ง 🛍️", "อื่นๆ ➕"]
         else:
             cat_list = ["ออมระยะยาว 🏦", "ออมฉุกเฉิน 🚑", "อื่นๆ ➕"]
-        
         selected_cat = st.selectbox("📁 หมวดหมู่", cat_list)
-        final_category = selected_cat
-        if selected_cat == "อื่นๆ ➕":
-            final_category = st.text_input("✍️ ระบุหมวดหมู่เอง")
-            
-        sub_cat_in = st.text_input("📝 รายละเอียด", placeholder="พิมพ์โน้ตกันลืม...")
-        amt_in = st.number_input("💵 จำนวนเงิน (บาท)", min_value=0.0, step=1.0)
+        final_category = st.text_input("✍️ ระบุเอง") if selected_cat == "อื่นๆ ➕" else selected_cat
+        sub_cat_in = st.text_input("📝 รายละเอียด")
+        amt_in = st.number_input("💵 จำนวนเงิน", min_value=0.0)
 
-    if st.button("💖 บันทึกรายการสำเร็จ!", use_container_width=True):
-        if amt_in > 0 and final_category:
-            inc, exp, sav = (amt_in, 0, 0) if type_in == "รายรับ 💰" else (0, amt_in, 0) if type_in == "รายจ่าย 💸" else (0, 0, amt_in)
-            c.execute("INSERT INTO records (user_id, date, wallet, category, sub_category, income, expense, savings) VALUES (?,?,?,?,?,?,?,?)", 
-                      (user_name, date_in.strftime('%Y-%m-%d'), wallet_in, final_category, sub_cat_in, inc, exp, sav))
-            conn.commit()
-            st.success("บันทึกเรียบร้อยเมี๊ยวว!")
-            st.rerun()
+    if st.button("💖 บันทึกรายการ", use_container_width=True):
+        inc, exp, sav = (amt_in, 0, 0) if type_in == "รายรับ 💰" else (0, amt_in, 0) if type_in == "รายจ่าย 💸" else (0, 0, amt_in)
+        c.execute("INSERT INTO records (user_id, date, wallet, category, sub_category, income, expense, savings) VALUES (?,?,?,?,?,?,?,?)", 
+                  (user_name, date_in.strftime('%Y-%m-%d'), wallet_in, final_category, sub_cat_in, inc, exp, sav))
+        conn.commit()
+        st.success("บันทึกแล้ว!")
+        st.rerun()
 
-with tab3:
-    st.markdown("### 📊 วิเคราะห์ภาพรวม")
-    if not df.empty:
-        # กราฟ 1: เปรียบเทียบ รายรับ/รายจ่าย/เงินออม
-        st.write("💰 สรุปยอดรวม (บาท)")
-        summary_df = pd.DataFrame({
-            'ประเภท': ['รายรับ', 'รายจ่าย', 'เงินออม'],
-            'จำนวนเงิน': [df['income'].sum(), df['expense'].sum(), df['savings'].sum()]
-        })
-        fig_bar = px.bar(summary_df, x='ประเภท', y='จำนวนเงิน', color='ประเภท',
-                         color_discrete_map={'รายรับ':'#4CAF50', 'รายจ่าย':'#FF5252', 'เงินออม':'#FF69B4'})
-        st.plotly_chart(fig_bar, use_container_width=True)
+with tab2:
+    st.markdown("### 🏦 ยอดเงินในแต่ละกระเป๋า")
+    col_w1, col_w2, col_w3 = st.columns(3)
+    wallets = ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"]
+    cols = [col_w1, col_w2, col_w3]
+    for i, w in enumerate(wallets):
+        w_df = df[df['wallet'] == w]
+        balance = w_df['income'].sum() - w_df['expense'].sum() - w_df['savings'].sum() if not w_df.empty else 0.0
+        cols[i].metric(w, f"{balance:,.2f} ฿")
 
-        # กราฟ 2: แยกตามหมวดหมู่
-        st.write("📁 รายจ่ายแยกตามหมวดหมู่")
-        exp_df = df[df['expense'] > 0]
-        if not exp_df.empty:
-            fig_pie = px.pie(exp_df, values='expense', names='category', hole=0.4)
-            st.plotly_chart(fig_pie, use_container_width=True)
-        else:
-            st.info("ยังไม่มีข้อมูลรายจ่ายเพื่อแสดงกราฟแยกหมวดหมู่")
+with tab4:
+    st.markdown("### 🎯 เป้าหมายการออม")
+    st.metric("💰 เงินออมสะสมทั้งหมด", f"{total_save:,.2f} ฿")
+    if total_in > 0:
+        prog = min(total_save / total_in, 1.0)
+        st.write(f"คุณออมเงินไปได้แล้ว {prog*100:.1f}% ของรายได้")
+        st.progress(prog)
     else:
-        st.info("บันทึกข้อมูลก่อนเพื่อดูการวิเคราะห์นะเมี๊ยวว!")
-
-with tab5:
-    st.markdown("### 📖 ประวัติการทำรายการ")
-    if not df.empty:
-        st.dataframe(df.sort_values(by=['date', 'id'], ascending=[False, False]), use_container_width=True)
-    else:
-        st.write("ยังไม่มีข้อมูล")
+        st.info("กรุณาบันทึก 'รายรับ' เพื่อเริ่มคำนวณความคืบหน้าการออมครับ")
 
 st.markdown("---")
 if st.button("🚪 ออกจากระบบ"):
     st.session_state.logged_in = False
-    st.session_state.user_name = ""
     st.rerun()
