@@ -4,8 +4,8 @@ import sqlite3
 import plotly.express as px
 from datetime import datetime
 
-# --- 1. ตั้งค่าหน้าเว็บ v13.0 (Separated Login Page) ---
-st.set_page_config(page_title="Meow Wallet Ultimate", layout="wide", page_icon="🐾")
+# --- 1. การตั้งค่าหน้าเว็บ (เปลี่ยนชื่อแอปและปรับแต่งดีไซน์) ---
+st.set_page_config(page_title="Meow Wallet", layout="wide", page_icon="🐾")
 
 st.markdown("""
     <style>
@@ -16,13 +16,12 @@ st.markdown("""
         color: #2D2D2D !important;
     }
     .main-title { color: #FF69B4; text-align: center; font-size: 45px; font-weight: bold; padding: 20px; }
-    div[data-testid="stMetric"] { background: white !important; border-radius: 15px; border: 2px solid #FFD1DC !important; }
-    .login-box { background-color: white; padding: 40px; border-radius: 20px; border: 3px solid #FF69B4; text-align: center; max-width: 500px; margin: auto; }
+    div[data-testid="stMetric"] { background: white !important; border-radius: 15px; border: 2px solid #FFD1DC !important; padding: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. ระบบฐานข้อมูล ---
-conn = sqlite3.connect('meow_ultimate_v13.db', check_same_thread=False)
+# --- 2. ระบบฐานข้อมูล (v15) ---
+conn = sqlite3.connect('meow_wallet_v15.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS records 
              (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, 
@@ -30,15 +29,15 @@ c.execute('''CREATE TABLE IF NOT EXISTS records
               income REAL DEFAULT 0, expense REAL DEFAULT 0, savings REAL DEFAULT 0)''')
 conn.commit()
 
-# --- 3. ระบบจัดการ Session (ล็อคอิน) ---
+# --- 3. ระบบ Login Session ---
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 if 'user_name' not in st.session_state:
     st.session_state.user_name = ""
 
-# --- หน้าแรก: Login Page ---
+# --- หน้าแรก: Login Page (เปลี่ยนชื่อเป็น 🐾 Meow Wallet 🐾) ---
 if not st.session_state.logged_in:
-    st.markdown("<div class='main-title'>🐾 Meow Wallet Ultimate</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-title'>🐾 Meow Wallet 🐾</div>", unsafe_allow_html=True)
     col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
     with col_l2:
         st.markdown("<h1 style='text-align: center; font-size: 100px;'>🐱</h1>", unsafe_allow_html=True)
@@ -52,17 +51,16 @@ if not st.session_state.logged_in:
                 st.warning("กรุณาใส่ชื่อก่อนนะเมี๊ยวว!")
     st.stop()
 
-# --- หน้าหลัก: หลังจากล็อคอินแล้ว ---
+# --- หน้าหลัก: หลังจากล็อคอิน ---
 user_name = st.session_state.user_name
-
-# ดึงข้อมูล
 df = pd.read_sql(f"SELECT * FROM records WHERE user_id='{user_name}'", conn)
+
+# คำนวณยอดเงิน
 total_in = df['income'].sum() if not df.empty else 0
 total_out = df['expense'].sum() if not df.empty else 0
 total_save = df['savings'].sum() if not df.empty else 0
-net_balance = total_in - total_out - total_save
 
-st.markdown(f"<div class='main-title'>🐾 กระเป๋าของ {user_name}</div>", unsafe_allow_html=True)
+st.markdown(f"<div class='main-title'>🐾 Meow Wallet ของ {user_name} 🐾</div>", unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "🎯 การออม", "📖 ประวัติ"])
 
@@ -74,6 +72,7 @@ with tab1:
         wallet_in = st.selectbox("👛 ช่องทาง", ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"])
         type_in = st.radio("🏷️ ประเภท", ["รายจ่าย 💸", "รายรับ 💰", "เงินออม 🐷"], horizontal=True)
     with col2:
+        # ระบบหมวดหมู่ตามประเภท (ฟังก์ชันเดิมที่ต้องการ)
         if type_in == "รายรับ 💰":
             cat_list = ["เงินเดือน 💸", "โบนัส 🎁", "ขายของ 🛍️", "อื่นๆ ➕"]
         elif type_in == "รายจ่าย 💸":
@@ -83,8 +82,9 @@ with tab1:
         
         selected_cat = st.selectbox("📁 หมวดหมู่", cat_list)
         final_category = selected_cat
+        # ระบบเพิ่มหมวดหมู่เอง (ฟังก์ชันเดิมที่ต้องการ)
         if selected_cat == "อื่นๆ ➕":
-            final_category = st.text_input("✍️ ระบุหมวดหมู่เอง")
+            final_category = st.text_input("✍️ ระบุชื่อหมวดหมู่เอง")
             
         sub_cat_in = st.text_input("📝 รายละเอียด", placeholder="พิมพ์โน้ตกันลืม...")
         amt_in = st.number_input("💵 จำนวนเงิน (บาท)", min_value=0.0, step=1.0)
@@ -98,18 +98,40 @@ with tab1:
             st.success("บันทึกเรียบร้อยเมี๊ยวว!")
             st.rerun()
 
-with tab5:
-    st.markdown("### 📖 ประวัติย้อนหลัง")
-    if not df.empty:
-        st.dataframe(df.sort_values(by='id', ascending=False), use_container_width=True)
-        csv = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📥 สำรองข้อมูลเป็น CSV", data=csv, file_name=f'meow_{user_name}.csv')
-    else:
-        st.write("ยังไม่มีรายการบันทึกครับ")
+with tab2:
+    st.markdown("### 🏦 ยอดเงินคงเหลือ")
+    df_w = pd.read_sql(f"SELECT wallet, SUM(income) as inc, SUM(expense) as exp, SUM(savings) as sav FROM records WHERE user_id='{user_name}' GROUP BY wallet", conn)
+    c_wallets = st.columns(3)
+    wallets = ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"]
+    for i, w_name in enumerate(wallets):
+        row = df_w[df_w['wallet'] == w_name]
+        bal = row['inc'].sum() - row['exp'].sum() - row['sav'].sum() if not row.empty else 0.0
+        c_wallets[i].metric(w_name, f"{bal:,.2f} ฿")
 
-# ปุ่มออกจากระบบด้านล่างสุด
+with tab4:
+    st.markdown("### 🎯 สถานะการออม")
+    st.metric("💰 เงินออมสะสม", f"{total_save:,.2f} ฿")
+    # แก้ไข Error สีแดง (Division by Zero Fix)
+    if total_in > 0:
+        progress = min(total_save / total_in, 1.0)
+        st.write(f"คุณออมไปแล้ว {progress*100:.1f}% ของรายรับ")
+        st.progress(progress)
+    else:
+        st.info("ระบบจะเริ่มคำนวณแถบการออม เมื่อคุณมียอด 'รายรับ' เข้ามานะเมี๊ยวว!")
+
+with tab5:
+    st.markdown("### 📖 ประวัติการทำรายการ")
+    if not df.empty:
+        df_show = df.sort_values(by=['date', 'id'], ascending=[False, False])
+        st.dataframe(df_show[['date', 'wallet', 'category', 'sub_category', 'income', 'expense', 'savings']], use_container_width=True)
+        # ฟังก์ชัน Download CSV (ฟังก์ชันเดิมที่ต้องการ)
+        csv = df_show.to_csv(index=False).encode('utf-8-sig')
+        st.download_button("📥 ดาวน์โหลด CSV สำรองข้อมูล", data=csv, file_name=f'meow_wallet_{user_name}.csv', use_container_width=True)
+    else:
+        st.write("ยังไม่มีข้อมูลเมี๊ยวว")
+
 st.markdown("---")
-if st.button("🚪 ออกจากระบบ (เปลี่ยนผู้ใช้งาน)"):
+if st.button("🚪 ออกจากระบบ (สลับทาสแมว)"):
     st.session_state.logged_in = False
     st.session_state.user_name = ""
     st.rerun()
