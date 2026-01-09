@@ -107,4 +107,60 @@ with tab5:
                 
             c_btn1, c_btn2 = st.columns(2)
             if c_btn1.button("✅ ยืนยันการแก้ไข", use_container_width=True):
-                if row['income'] > 0: vals = (new_
+                # ตรวจสอบประเภทข้อมูลดั้งเดิมเพื่ออัปเดตค่าให้ถูกช่อง
+                if row['income'] > 0:
+                    new_vals = (new_amt, 0, 0)
+                elif row['expense'] > 0:
+                    new_vals = (0, new_amt, 0)
+                else:
+                    new_vals = (0, 0, new_amt)
+                
+                c.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, sub_category=? WHERE id=?", 
+                          (new_date.strftime('%Y-%m-%d'), new_vals[0], new_vals[1], new_vals[2], new_sub, selected_id))
+                conn.commit()
+                st.success("แก้ไขข้อมูลเรียบร้อย!")
+                st.rerun()
+                
+            if c_btn2.button("🗑️ ลบรายการนี้", use_container_width=True):
+                c.execute("DELETE FROM records WHERE id=?", (selected_id,))
+                conn.commit()
+                st.warning("ลบรายการแล้ว!")
+                st.rerun()
+    else:
+        st.info("ยังไม่มีข้อมูลเมี๊ยวว")
+
+# คำนวณยอดรวม
+total_in = df['income'].sum() if not df.empty else 0
+total_out = df['expense'].sum() if not df.empty else 0
+total_save = df['savings'].sum() if not df.empty else 0
+
+with tab2:
+    st.markdown("### 🏦 ยอดคงเหลือ")
+    c_w1, c_w2, c_w3 = st.columns(3)
+    wallets = ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"]
+    for i, w in enumerate(wallets):
+        w_df = df[df['wallet'] == w]
+        bal = w_df['income'].sum() - w_df['expense'].sum() - w_df['savings'].sum() if not w_df.empty else 0.0
+        cols = [c_w1, c_w2, c_w3]
+        cols[i].metric(w, f"{bal:,.2f} ฿")
+
+with tab3:
+    st.markdown("### 📊 วิเคราะห์")
+    if not df.empty and (total_out > 0 or total_save > 0):
+        fig = px.pie(names=['รายจ่าย', 'เงินออม'], values=[total_out, total_save], hole=0.4, color_discrete_sequence=['#FF5252', '#FF69B4'])
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("บันทึกรายจ่ายหรือเงินออมเพื่อดูแผนภูมิ")
+
+with tab4:
+    st.markdown("### 🎯 การออม")
+    st.metric("เงินออมสะสม", f"{total_save:,.2f} ฿")
+    if total_in > 0:
+        progress_val = min(total_save/total_in, 1.0)
+        st.progress(progress_val)
+        st.write(f"{(total_save/total_in)*100:.1f}% ของรายรับ")
+
+st.markdown("---")
+if st.button("🚪 ออกจากระบบ"):
+    st.session_state.logged_in = False
+    st.rerun()
