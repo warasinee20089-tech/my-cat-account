@@ -1,226 +1,192 @@
 import streamlit as st
-import pandas as pd
 import sqlite3
-import plotly.express as px
+import pandas as pd
 from datetime import datetime
+import plotly.express as px
 
-# --- 1. การตั้งค่าระบบ (System Config) ---
-# ต้องอยู่บรรทัดแรกสุดของโค้ด ห้ามย้าย!
-st.set_page_config(
-    page_title="Meow Wallet Stable",
-    layout="wide",
-    page_icon="🐾"
-)
+# --- 1. ตั้งค่าหน้าเว็บและ CSS ธีมสีชมพู ---
+st.set_page_config(page_title="กระเป๋าเงินเหมียว", page_icon="🐾", layout="wide")
 
-# --- 2. ฟังก์ชันจัดการฐานข้อมูลแบบปลอดภัย (Safe Database Handling) ---
-DB_NAME = 'meow_wallet_stable.db'
-
-def run_query(query, params=(), fetch=False):
-    """
-    ฟังก์ชันกลางสำหรับสั่งงาน Database
-    ช่วยป้องกัน Error แบบ Database Locked ที่มักเกิดใน Streamlit
-    """
-    try:
-        conn = sqlite3.connect(DB_NAME, check_same_thread=False)
-        c = conn.cursor()
-        c.execute(query, params)
-        
-        if fetch:
-            data = c.fetchall()
-            columns = [description[0] for description in c.description]
-            result = pd.DataFrame(data, columns=columns)
-        else:
-            conn.commit()
-            result = None
-            
-        conn.close()
-        return result
-    except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดกับฐานข้อมูล: {e}")
-        return pd.DataFrame() if fetch else None
-
-def init_db():
-    """สร้างตารางเก็บข้อมูลถ้ายังไม่มี"""
-    create_table_sql = """
-    CREATE TABLE IF NOT EXISTS transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date TEXT,
-        type TEXT,
-        category TEXT,
-        amount REAL,
-        note TEXT
-    )
-    """
-    run_query(create_table_sql)
-
-# เริ่มต้นระบบฐานข้อมูลทันที
-init_db()
-
-# --- 3. การตกแต่งหน้าตา (CSS Styling) ---
+# ใส่ CSS แต่งหน้าเว็บให้เป็นสีชมพู
 st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500&display=swap');
-    
-    html, body, [class*="css"], .stMarkdown {
-        font-family: 'Kanit', sans-serif !important;
+<style>
+    /* เปลี่ยนสีพื้นหลังทั้งหน้า */
+    .stApp {
+        background-color: #FFF0F5;
     }
-    .stApp { background-color: #FFF0F5 !important; } /* สีชมพูพาสเทล */
-    
-    /* ปรับแต่งการ์ดตัวเลข */
-    div[data-testid="stMetric"] {
-        background-color: white;
-        border-radius: 12px;
-        padding: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        border: 1px solid #FFB6C1;
-    }
-    
+    /* ปรับแต่งปุ่มกด */
     .stButton>button {
-        background-color: #FF69B4;
+        background-color: #DB7093;
         color: white;
-        border-radius: 20px;
+        border-radius: 10px;
         border: none;
-        padding: 10px 20px;
-        font-weight: bold;
     }
     .stButton>button:hover {
-        background-color: #FF1493;
+        background-color: #C71585;
         color: white;
     }
-    </style>
+    /* ปรับแต่งหัวข้อ */
+    h1, h2, h3 {
+        color: #4B0082;
+        font-family: 'Sarabun', sans-serif;
+    }
+</style>
 """, unsafe_allow_html=True)
 
-# --- 4. ส่วน Sidebar (เมนูข้าง) ---
-with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/616/616430.png", width=80)
-    st.title("⚙️ ตั้งค่า")
-    budget = st.number_input("🎯 ตั้งงบรายจ่ายเดือนนี้", value=5000, step=500)
-    st.info("💡 ทิป: ลองบันทึกรายรับ-รายจ่าย แล้วดูน้องแมวเปลี่ยนอารมณ์นะ!")
-
-# --- 5. ดึงข้อมูลมาแสดงผล (Data Fetching) ---
-try:
-    df = run_query("SELECT * FROM transactions", fetch=True)
-except Exception:
-    df = pd.DataFrame() # กันเหนียวถ้าดึงข้อมูลพลาด
-
-# คำนวณยอดเงิน
-if not df.empty:
-    total_inc = df[df['type'] == 'รายรับ']['amount'].sum()
-    total_exp = df[df['type'] == 'รายจ่าย']['amount'].sum()
-    balance = total_inc - total_exp
-else:
-    total_inc, total_exp, balance = 0, 0, 0
-
-# --- 6. ส่วนแสดงผลหลัก (Dashboard) ---
-st.title("🐾 Meow Wallet: ระบบบัญชีทาสแมว")
-
-# Layout: การ์ดตัวเลข + น้องแมว
-col_metrics, col_cat = st.columns([3, 1])
-
-with col_metrics:
-    c1, c2, c3 = st.columns(3)
-    c1.metric("💰 รายรับรวม", f"{total_inc:,.2f} ฿")
-    c2.metric("💸 รายจ่ายรวม", f"{total_exp:,.2f} ฿")
-    c3.metric("🐷 ยอดคงเหลือ", f"{balance:,.2f} ฿")
-    
-    # Logic แจ้งเตือนงบประมาณ
-    if total_exp > budget:
-        st.error(f"⚠️ แย่แล้ว! ใช้เงินเกินงบไป {total_exp - budget:,.2f} บาท")
-    elif total_exp > (budget * 0.8):
-        st.warning(f"⚠️ ระวัง! ใช้ไป 80% ของงบแล้ว")
-    else:
-        st.success("✅ สุขภาพการเงินแข็งแรงดีเยี่ยม")
-
-with col_cat:
-    # Logic น้องแมวแสดงอารมณ์
-    if total_exp > budget:
-        st.image("https://cdn-icons-png.flaticon.com/512/1865/1865089.png", caption="ถังแตกแล้ว!")
-    elif balance > 3000:
-        st.image("https://cdn-icons-png.flaticon.com/512/616/616554.png", caption="รวยเวอร์!")
-    else:
-        st.image("https://cdn-icons-png.flaticon.com/512/616/616430.png", caption="สวัสดีเมี๊ยว")
-
-st.markdown("---")
-
-# --- 7. Tabs แบ่งการทำงาน ---
-tab1, tab2, tab3 = st.tabs(["📝 บันทึกรายการ", "📊 วิเคราะห์กราฟ", "💾 จัดการข้อมูล"])
-
-# === Tab 1: บันทึกข้อมูล ===
-with tab1:
-    with st.form("entry_form", clear_on_submit=True):
-        col_d, col_t = st.columns(2)
-        date = col_d.date_input("วันที่", datetime.now())
-        tx_type = col_t.radio("ประเภท", ["รายจ่าย", "รายรับ"], horizontal=True)
-        
-        category = st.selectbox("หมวดหมู่", 
-            ["อาหาร 🍜", "เดินทาง 🚗", "ของใช้ 🛍️", "ค่าหอ/น้ำไฟ 🏠", "เงินเดือน 💵", "เสี่ยงโชค 🎰", "อื่นๆ ✨"])
-        amount = st.number_input("จำนวนเงิน (บาท)", min_value=0.0, step=10.0)
-        note = st.text_input("บันทึกช่วยจำ")
-        
-        submitted = st.form_submit_button("บันทึกข้อมูล ✅")
-        
-        if submitted:
-            if amount > 0:
-                run_query(
-                    "INSERT INTO transactions (date, type, category, amount, note) VALUES (?,?,?,?,?)",
-                    (date, tx_type, category, amount, note)
-                )
-                st.success("บันทึกเรียบร้อยเมี๊ยว!")
-                st.rerun()
-            else:
-                st.warning("⚠️ กรุณาระบุจำนวนเงินให้ถูกต้อง")
-
-# === Tab 2: วิเคราะห์แนวโน้ม ===
-with tab2:
-    if not df.empty:
-        c_chart1, c_chart2 = st.columns(2)
-        
-        with c_chart1:
-            st.subheader("สัดส่วนรายจ่าย")
-            exp_df = df[df['type'] == 'รายจ่าย']
-            if not exp_df.empty:
-                fig = px.pie(exp_df, values='amount', names='category', hole=0.4,
-                             color_discrete_sequence=px.colors.qualitative.Pastel)
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("ยังไม่มีข้อมูลรายจ่าย")
-                
-        with c_chart2:
-            st.subheader("แนวโน้มการใช้เงิน (รายวัน)")
-            df['date_obj'] = pd.to_datetime(df['date'])
-            daily = df[df['type'] == 'รายจ่าย'].groupby('date_obj')['amount'].sum().reset_index()
-            if not daily.empty:
-                fig_line = px.line(daily, x='date_obj', y='amount', markers=True)
-                fig_line.update_traces(line_color='#FF69B4')
-                st.plotly_chart(fig_line, use_container_width=True)
-            else:
-                st.info("บันทึกข้อมูลหลายๆ วันเพื่อดูกราฟเส้น")
-    else:
-        st.info("เริ่มบันทึกข้อมูลที่ Tab แรกได้เลย")
-
-# === Tab 3: จัดการข้อมูล & Excel ===
-with tab3:
-    if not df.empty:
-        st.dataframe(df.sort_values("id", ascending=False), use_container_width=True)
-        
-        # ปุ่มโหลด Excel
-        csv_data = df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            "📥 ดาวน์โหลดไฟล์ CSV",
-            data=csv_data,
-            file_name='meow_wallet_data.csv',
-            mime='text/csv'
+# --- 2. ส่วนจัดการฐานข้อมูล (Database) ---
+def init_db():
+    # เชื่อมต่อฐานข้อมูล (แก้ปัญหา check_same_thread=False ให้แล้ว)
+    conn = sqlite3.connect('meow_wallet_v19.db', check_same_thread=False)
+    c = conn.cursor()
+    # สร้างตารางถ้ายังไม่มี
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT,
+            category TEXT,
+            source TEXT,
+            description TEXT,
+            type TEXT,
+            amount REAL
         )
+    ''')
+    conn.commit()
+    return conn
+
+# เรียกใช้ฟังก์ชันเชื่อมต่อฐานข้อมูล
+conn = init_db()
+
+# --- 3. ระบบล็อกอิน (จำลอง) ---
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'username' not in st.session_state:
+    st.session_state.username = ""
+
+def login():
+    st.session_state.logged_in = True
+
+def logout():
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+
+# --- 4. หน้าจอแสดงผล ---
+
+if not st.session_state.logged_in:
+    # === หน้า Login ===
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("<h1 style='text-align: center;'>🐾 กระเป๋าเงินเหมียว 🐾</h1>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align: center; font-size: 50px;'>🐱</div>", unsafe_allow_html=True)
+        st.text_input("ชื่อทาสแมว:", key="user_input")
+        st.button("เข้าสู่ระบบ 🐾", on_click=login, use_container_width=True)
+
+else:
+    # === หน้าหลักหลัง Login ===
+    
+    # สร้าง Tabs เมนู
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "🎯 การออม", "📖 ประวัติและแก้ไข"])
+
+    # ---------------- TAB 1: บันทึกรายการ ----------------
+    with tab1:
+        st.header("✨ เพิ่มรายการใหม่")
         
-        st.markdown("### ❌ ลบรายการ")
-        del_list = df.apply(lambda x: f"ID:{x['id']} | {x['date']} | {x['category']} {x['amount']}บ.", axis=1)
-        target = st.selectbox("เลือกรายการที่จะลบ", del_list)
+        with st.form("transaction_form", clear_on_submit=True):
+            col_date, col_cat = st.columns(2)
+            with col_date:
+                date_val = st.date_input("📅 วันที่", datetime.now())
+            with col_cat:
+                category = st.selectbox("📂 หมวดหมู่", ["ค่าอาหาร 🍲", "เดินทาง 🚗", "ช้อปปิ้ง 🛍️", "เงินเดือน 💰", "ขายของ 📦", "อื่นๆ"])
+            
+            col_source, col_desc = st.columns(2)
+            with col_source:
+                source = st.selectbox("👛 ช่องทาง", ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"])
+            with col_desc:
+                description = st.text_input("📝 รายละเอียด", placeholder="เช่น ข้าวมันไก่")
+
+            col_type, col_amount = st.columns(2)
+            with col_type:
+                trans_type = st.radio("🏷️ ประเภท", ["รายจ่าย 💸", "รายรับ 💰", "เงินออม 🐷"], horizontal=True)
+            with col_amount:
+                amount = st.number_input("💵 จำนวนเงิน", min_value=0.0, format="%.2f")
+
+            submitted = st.form_submit_button("💖 บันทึกรายการ", use_container_width=True)
+            
+            if submitted:
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO transactions (date, category, source, description, type, amount) VALUES (?, ?, ?, ?, ?, ?)",
+                               (date_val, category, source, description, trans_type, amount))
+                conn.commit()
+                st.success("บันทึกข้อมูลสำเร็จแล้ว เมี๊ยว! 🐱")
+
+    # ---------------- TAB 2: กระเป๋า (สรุปยอด) ----------------
+    with tab2:
+        st.header("🏛️ ยอดคงเหลือ")
         
-        if st.button("ยืนยันการลบ"):
-            if target:
-                t_id = target.split("|")[0].replace("ID:", "").strip()
-                run_query("DELETE FROM transactions WHERE id=?", (t_id,))
-                st.success("ลบข้อมูลแล้ว")
-                st.rerun()
-    else:
-        st.info("ยังไม่มีข้อมูลให้จัดการ")
+        # ดึงข้อมูลมาคำนวณ
+        df = pd.read_sql_query("SELECT * FROM transactions", conn)
+        
+        # คำนวณแยกตามช่องทาง (ตัวอย่างเบื้องต้น)
+        # หมายเหตุ: ในโค้ดจริงต้องคำนวณ รายรับ - รายจ่าย ของแต่ละช่องทาง
+        # อันนี้ทำแบบง่ายให้เห็นภาพรวม
+        cash = df[df['source'] == "เงินสด 💵"]
+        cash_total = cash[cash['type'] == 'รายรับ 💰']['amount'].sum() - cash[cash['type'] == 'รายจ่าย 💸']['amount'].sum()
+
+        bank = df[df['source'] == "เงินฝากธนาคาร 🏦"]
+        bank_total = bank[bank['type'] == 'รายรับ 💰']['amount'].sum() - bank[bank['type'] == 'รายจ่าย 💸']['amount'].sum()
+
+        credit = df[df['source'] == "บัตรเครดิต 💳"]
+        credit_total = credit[credit['type'] == 'รายรับ 💰']['amount'].sum() - credit[credit['type'] == 'รายจ่าย 💸']['amount'].sum()
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("เงินสด 💵", f"{cash_total:,.2f} ฿")
+        c2.metric("เงินฝากธนาคาร 🏦", f"{bank_total:,.2f} ฿")
+        c3.metric("บัตรเครดิต 💳", f"{credit_total:,.2f} ฿")
+
+    # ---------------- TAB 3: วิเคราะห์ ----------------
+    with tab3:
+        st.header("📊 วิเคราะห์")
+        df = pd.read_sql_query("SELECT * FROM transactions", conn)
+        
+        if not df.empty:
+            # กราฟวงกลมแยก รายรับ/รายจ่าย/เงินออม
+            fig = px.pie(df, values='amount', names='type', title='สัดส่วนการใช้เงิน', color_discrete_sequence=px.colors.sequential.RdBu)
+            st.plotly_chart(fig)
+        else:
+            st.info("ยังไม่มีข้อมูลให้วิเคราะห์")
+
+    # ---------------- TAB 4: การออม ----------------
+    with tab4:
+        st.header("🎯 การออม")
+        df = pd.read_sql_query("SELECT * FROM transactions", conn)
+        
+        if not df.empty:
+            savings = df[df['type'] == "เงินออม 🐷"]['amount'].sum()
+            income = df[df['type'] == "รายรับ 💰"]['amount'].sum()
+            
+            st.metric("เงินออมสะสม", f"{savings:,.2f} ฿")
+            
+            if income > 0:
+                percent = (savings / income) * 100
+                st.progress(min(percent / 100, 1.0))
+                st.caption(f"ออมไปแล้ว {percent:.1f}% ของรายรับ")
+        else:
+            st.metric("เงินออมสะสม", "0.00 ฿")
+
+    # ---------------- TAB 5: ประวัติ ----------------
+    with tab5:
+        st.header("📖 ประวัติและแก้ไข")
+        df = pd.read_sql_query("SELECT * FROM transactions ORDER BY id DESC", conn)
+        st.dataframe(df, use_container_width=True)
+        
+        # ปุ่มลบข้อมูลล่าสุด (ตัวอย่าง)
+        if st.button("ลบรายการล่าสุด"):
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM transactions WHERE id = (SELECT MAX(id) FROM transactions)")
+            conn.commit()
+            st.experimental_rerun()
+
+    # ปุ่มออกจากระบบด้านล่าง
+    st.markdown("---")
+    if st.button("🚪 ออกจากระบบ"):
+        logout()
+        st.experimental_rerun()
