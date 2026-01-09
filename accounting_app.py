@@ -2,14 +2,24 @@ import streamlit as st
 import pandas as pd
 import os
 import datetime
-import altair as alt  # ใช้ตัวนี้แทน matplotlib (มีทุกเครื่อง ไม่เออเร่อแน่นอน)
+import matplotlib.pyplot as plt
 
 # --- 1. ตั้งค่าหน้าเว็บ ---
-st.set_page_config(page_title="กระเป๋าเงินเหมียว", page_icon="🐱", layout="wide")
+st.set_page_config(page_title="กระเป๋าเงินเหมียว V.2", page_icon="🐱", layout="wide")
+
+# ตกแต่ง CSS ให้ดูน่ารักขึ้น
+st.markdown("""
+<style>
+    .stApp {background-color: #f0f2f6;}
+    div[data-testid="stMetricValue"] {font-size: 24px;}
+    h1 {color: #ff6f61;}
+    h2, h3 {color: #4b4b4b;}
+</style>
+""", unsafe_allow_html=True)
 
 DATA_FILE = "transactions.csv"
 
-# --- 2. ฟังก์ชันจัดการข้อมูล ---
+# --- 2. ระบบจัดการข้อมูล ---
 def load_data():
     if os.path.exists(DATA_FILE):
         try:
@@ -36,129 +46,143 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 def check_login():
-    # >>> รหัสผ่าน (แก้ตรงนี้) <<<
-    if st.session_state.u_in == "admin" and st.session_state.p_in == "1234":
+    if st.session_state.user_input == "admin" and st.session_state.pass_input == "1234":
         st.session_state['logged_in'] = True
     else:
-        st.error("❌ รหัสผิดครับ")
+        st.error("❌ รหัสผ่านผิด! ลองใหม่นะเหมียว")
 
 def logout_user():
     st.session_state['logged_in'] = False
     st.rerun()
 
-# --- 4. หน้าจอหลัก ---
-
+# --- 4. ส่วนแสดงผลหลัก ---
 if not st.session_state['logged_in']:
-    st.title("🔐 Login")
-    c1, c2 = st.columns([1, 2])
-    with c1:
-        st.text_input("Username", key="u_in")
-        st.text_input("Password", type="password", key="p_in")
-        st.button("เข้าสู่ระบบ", on_click=check_login)
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        st.title("🔐 เข้าสู่ระบบ")
+        st.info("Username: admin | Password: 1234")
+        st.text_input("Username", key="user_input")
+        st.text_input("Password", type="password", key="pass_input")
+        st.button("🚀 Login", on_click=check_login, use_container_width=True)
 
 else:
-    # Sidebar
     with st.sidebar:
-        st.write(f"สวัสดี Admin 🐱")
+        st.title("🐱 เมนูเหมียว")
+        st.write(f"สวัสดีคุณ Admin! วันนี้เหนื่อยไหม?")
+        st.write("---")
+        
+        # ปุ่มดาวน์โหลดไฟล์ CSV
+        df = load_data()
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 ดาวน์โหลดข้อมูล (CSV)",
+            data=csv,
+            file_name='my_cat_wallet.csv',
+            mime='text/csv',
+            use_container_width=True
+        )
+        
+        st.write("---")
         if st.button("🚪 ออกจากระบบ", use_container_width=True):
             logout_user()
 
-    st.title("🐱 กระเป๋าเงินเหมียว")
-    
-    t1, t2, t3 = st.tabs(["📝 จดบันทึก", "📋 ประวัติ", "📊 สรุปกราฟ"])
+    st.title("🐱 กระเป๋าเงินเหมียว (Cat Wallet)")
 
-    # === Tab 1: จดบันทึก ===
-    with t1:
-        st.subheader("จดรายการใหม่")
-        d_col, t_col = st.columns(2)
-        with d_col:
-            tx_date = st.date_input("วันที่", value=datetime.date.today())
-        with t_col:
-            tx_type = st.radio("ประเภท", ["รายจ่าย 💸", "รายรับ 💰", "เงินออม 🐷"], horizontal=True)
+    tab1, tab2, tab3 = st.tabs(["📝 จดบันทึก", "📋 ประวัติ", "📊 แดชบอร์ด"])
 
-        st.divider()
-        
-        # เลือกหมวด หรือ พิมพ์เอง
-        mode = st.radio("วิธีระบุหมวด:", ["เลือกจากรายการ", "พิมพ์เอง"], horizontal=True)
-        cat = ""
-        if mode == "เลือกจากรายการ":
-            if tx_type == "เงินออม 🐷":
-                opts = ["หยอดกระปุก", "ฝากธนาคาร", "หุ้น/กองทุน", "ทองคำ"]
-            elif tx_type == "รายรับ 💰":
-                opts = ["เงินเดือน", "โบนัส", "ขายของ", "ได้เงินคืน", "อื่นๆ"]
+    # --- TAB 1: จดบันทึก ---
+    with tab1:
+        with st.container(border=True):
+            st.subheader("📌 เพิ่มรายการใหม่")
+            c1, c2 = st.columns(2)
+            with c1:
+                tx_date = st.date_input("วันที่", value=datetime.date.today())
+            with c2:
+                tx_type = st.radio("ประเภท:", ["รายจ่าย 💸", "รายรับ 💰", "เงินออม 🐷"], horizontal=True)
+
+            # หมวดหมู่
+            category_options = {
+                "รายจ่าย 💸": ["อาหาร", "เดินทาง", "ของใช้", "แมว/สัตว์เลี้ยง", "ค่าห้อง/น้ำ/ไฟ", "ช้อปปิ้ง", "อื่นๆ"],
+                "รายรับ 💰": ["เงินเดือน", "โบนัส", "ขายของ", "อื่นๆ"],
+                "เงินออม 🐷": ["กระปุกหมู", "ฝากธนาคาร", "ลงทุน", "ทองคำ"]
+            }
+            
+            c3, c4 = st.columns([1, 1])
+            with c3:
+                use_manual = st.checkbox("พิมพ์หมวดหมู่เอง")
+            
+            if use_manual:
+                category = st.text_input("ระบุชื่อหมวด:", placeholder="เช่น ชานมไข่มุก")
             else:
-                opts = ["อาหาร", "เดินทาง", "ของใช้", "ค่าห้อง", "น้ำ/ไฟ/เน็ต", "ผ่อนของ", "รักษาพยาบาล", "อื่นๆ"]
-            cat = st.selectbox("เลือกหมวด:", opts)
-        else:
-            cat = st.text_input("พิมพ์หมวดเอง:", placeholder="เช่น ค่าอาหารแมว")
+                current_opts = category_options.get(tx_type, ["อื่นๆ"])
+                category = st.selectbox("เลือกหมวดหมู่:", current_opts)
 
-        amt = st.number_input("จำนวนเงิน:", min_value=0.0, step=10.0)
-        note = st.text_input("โน้ตกันลืม:")
+            c5, c6 = st.columns(2)
+            with c5:
+                amount = st.number_input("จำนวนเงิน (บาท):", min_value=0.0, format="%.2f", step=10.0)
+            with c6:
+                note = st.text_input("หมายเหตุ (กันลืม):", placeholder="...")
 
-        if st.button("❤️ บันทึก", use_container_width=True):
-            if not cat:
-                st.error("ใส่หมวดหมู่ด้วยครับ")
-            elif amt <= 0:
-                st.warning("ยอดเงินต้องมากกว่า 0")
-            else:
-                save_record(tx_date, cat, tx_type, amt, note)
-                st.success("บันทึกเรียบร้อย!")
-                st.rerun()
+            if st.button("✅ บันทึกข้อมูล", use_container_width=True, type="primary"):
+                if not category:
+                    st.error("⚠️ ลืมใส่หมวดหมู่รึเปล่า?")
+                elif amount <= 0:
+                    st.warning("⚠️ ยอดเงินต้องมากกว่า 0 นะ")
+                else:
+                    save_record(tx_date, category, tx_type, amount, note)
+                    st.success(f"บันทึกเรียบร้อย! พักผ่อนได้!")
+                    st.rerun()
 
-    # === Tab 2: ประวัติ ===
-    with t2:
-        st.subheader("ประวัติย้อนหลัง")
+    # --- TAB 2: ประวัติ ---
+    with tab2:
+        st.subheader("📜 รายการย้อนหลัง")
         df = load_data()
         if not df.empty:
             st.dataframe(df.sort_index(ascending=False), use_container_width=True)
-            if st.button("ล้างข้อมูลทั้งหมด"):
+            if st.button("🗑️ ล้างข้อมูลทั้งหมด (Reset)", type="secondary"):
                 if os.path.exists(DATA_FILE):
                     os.remove(DATA_FILE)
+                    st.success("ล้างข้อมูลเกลี้ยงแล้ว!")
                     st.rerun()
         else:
-            st.info("ยังไม่มีข้อมูล")
+            st.info("ยังไม่มีข้อมูล เริ่มจดเลย!")
 
-    # === Tab 3: สรุปกราฟ (ใช้ Altair แทน Matplotlib) ===
-    with t3:
-        st.subheader("📊 สรุปยอดเงิน")
+    # --- TAB 3: สรุปยอด ---
+    with tab3:
+        st.subheader("📈 สรุปสถานะการเงิน")
         df = load_data()
+        
         if not df.empty:
-            # คำนวณยอด
             inc = df[df["ประเภท"]=="รายรับ 💰"]["จำนวนเงิน"].sum()
             exp = df[df["ประเภท"]=="รายจ่าย 💸"]["จำนวนเงิน"].sum()
             sav = df[df["ประเภท"]=="เงินออม 🐷"]["จำนวนเงิน"].sum()
+            balance = inc - exp - sav # สมมติเงินคงเหลือหักออมด้วย หรือปรับตามสูตรที่ชอบ
 
-            c1, c2, c3 = st.columns(3)
-            c1.metric("รายรับ", f"{inc:,.0f}")
-            c2.metric("รายจ่าย", f"{exp:,.0f}")
-            c3.metric("เงินออม", f"{sav:,.0f}")
+            c_a, c_b, c_c, c_d = st.columns(4)
+            c_a.metric("💰 รายรับ", f"{inc:,.0f}")
+            c_b.metric("💸 รายจ่าย", f"{exp:,.0f}", delta=f"-{exp:,.0f}", delta_color="inverse")
+            c_c.metric("🐷 เงินออม", f"{sav:,.0f}", delta=f"+{sav:,.0f}")
+            c_d.metric("💎 คงเหลือใช้", f"{balance:,.0f}")
             
             st.divider()
 
-            # กราฟวงกลม 1: สัดส่วน รายรับ-จ่าย-ออม
-            st.write("#### 🍰 สัดส่วนการเงิน")
-            summ_type = df.groupby("ประเภท")["จำนวนเงิน"].sum().reset_index()
+            col_chart1, col_chart2 = st.columns(2)
             
-            chart1 = alt.Chart(summ_type).mark_arc(innerRadius=50).encode(
-                theta=alt.Theta(field="จำนวนเงิน", type="quantitative"),
-                color=alt.Color(field="ประเภท", type="nominal"),
-                tooltip=["ประเภท", "จำนวนเงิน"]
-            )
-            st.altair_chart(chart1, use_container_width=True)
+            with col_chart1:
+                st.write("##### 🍰 สัดส่วน รายรับ-รายจ่าย-ออม")
+                sum_type = df.groupby("ประเภท")["จำนวนเงิน"].sum()
+                if not sum_type.empty:
+                    fig, ax = plt.subplots(figsize=(4, 4))
+                    ax.pie(sum_type, labels=sum_type.index, autopct='%1.1f%%', startangle=90, colors=['#ff9999','#66b3ff','#99ff99'])
+                    st.pyplot(fig)
 
-            # กราฟวงกลม 2: รายจ่ายหมดไปกับค่าอะไร?
-            st.write("#### 💸 รายจ่ายแยกตามหมวด")
-            exp_data = df[df["ประเภท"]=="รายจ่าย 💸"]
-            if not exp_data.empty:
-                summ_exp = exp_data.groupby("หมวดหมู่")["จำนวนเงิน"].sum().reset_index()
-                chart2 = alt.Chart(summ_exp).mark_arc(innerRadius=50).encode(
-                    theta=alt.Theta(field="จำนวนเงิน", type="quantitative"),
-                    color=alt.Color(field="หมวดหมู่", type="nominal"),
-                    tooltip=["หมวดหมู่", "จำนวนเงิน"]
-                )
-                st.altair_chart(chart2, use_container_width=True)
-            else:
-                st.info("ไม่มีรายจ่าย")
-
+            with col_chart2:
+                st.write("##### 💸 หมดเงินไปกับอะไรเยอะสุด?")
+                exp_only = df[df["ประเภท"]=="รายจ่าย 💸"]
+                if not exp_only.empty:
+                    sum_exp = exp_only.groupby("หมวดหมู่")["จำนวนเงิน"].sum().sort_values(ascending=False).head(5)
+                    st.bar_chart(sum_exp)
+                else:
+                    st.info("ยังไม่มีรายจ่าย (เก่งมาก!)")
         else:
-            st.info("ลองบันทึกข้อมูลก่อนนะ กราฟถึงจะขึ้น")
+            st.warning("จดข้อมูลก่อนนะ กราฟถึงจะมา")
