@@ -7,21 +7,29 @@ from datetime import datetime
 # --- 1. SETTINGS & STYLES ---
 st.set_page_config(page_title="Meow Wallet Ultimate", layout="wide", page_icon="🐾")
 
-# ฟังก์ชันใส่เสียงคลิก (JavaScript) - ป้องกัน Error หน้าขาว
+# --- 🔊 Improved Sound System (JavaScript) ---
 def add_click_sound():
-    sound_url = "https://www.soundjay.com/buttons/button-16.mp3" # เสียงคลิกแบบ Soft
+    # ใช้เสียง Click พาสเทลที่โหลดไว
+    sound_url = "https://www.soundjay.com/buttons/button-16.mp3" 
     st.markdown(f"""
-        <audio id="clickSound"><source src="{sound_url}" type="audio/mpeg"></audio>
+        <audio id="clickSound" preload="auto">
+            <source src="{sound_url}" type="audio/mpeg">
+        </audio>
         <script>
-            const playSound = () => {{
+            const playMeowSound = () => {{
                 const audio = window.parent.document.getElementById('clickSound');
-                if (audio) {{ audio.currentTime = 0; audio.play(); }}
-            }};
-            window.parent.document.addEventListener('click', (e) => {{
-                if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {{
-                    playSound();
+                if (audio) {{
+                    audio.currentTime = 0;
+                    audio.play().catch(e => console.log("Audio play blocked"));
                 }}
-            }});
+            }};
+            // ตรวจจับการคลิกทุกปุ่มใน Streamlit
+            window.parent.document.addEventListener('click', (e) => {{
+                const target = e.target;
+                if (target.tagName === 'BUTTON' || target.closest('button') || target.tagName === 'A') {{
+                    playMeowSound();
+                }}
+            }}, true);
         </script>
     """, unsafe_allow_html=True)
 
@@ -39,7 +47,6 @@ st.markdown("""
     div[data-testid="stMetric"] { background: white !important; border-radius: 15px; border: 2px solid #FFE4E1 !important; padding: 10px; }
     .stButton>button { border-radius: 10px; background-color: #FFB7CE; color: white; border: none; font-weight: bold; width: 100%; height: 45px; }
     .budget-box { background: white; border-radius: 15px; padding: 15px; border: 1px solid #FFE4E1; margin-bottom: 20px; }
-    .budget-red-text { color: #FF4B4B; font-weight: bold; font-size: 16px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -104,6 +111,9 @@ st.markdown(f"<div class='meow-header-simple'><div class='meow-face'>{face}</div
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "🎯 การออม", "📖 ประวัติและแก้ไข"])
 
 with tab1:
+    # ปุ่มสำหรับหลอกเบราว์เซอร์ให้เปิดใช้งานเสียง
+    st.button("🔔 คลิกเพื่อเปิดใช้งานเสียง (Activate Sound)", help="คลิกที่นี่เพื่อให้ระบบเสียงทำงาน")
+    
     st.markdown("### ✨ เพิ่มรายการใหม่")
     ca, cb = st.columns(2)
     with ca:
@@ -146,8 +156,6 @@ with tab3:
     st.markdown("<div class='budget-box'>", unsafe_allow_html=True)
     st.write(f"**💰 งบเดือนนี้: {m_exp:,.2f} / 1,000.00 ฿**")
     st.progress(min(m_exp/1000.0, 1.0))
-    if m_exp >= 900:
-        st.markdown("<p class='budget-red-text'>🙀ทาสหยุดช้อปได้แล้ว! อาหารแมวจะหมดแล้วนะ!</p>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
     if not df.empty:
@@ -159,42 +167,18 @@ with tab3:
 
 with tab4:
     st.markdown("### 🎯 เป้าหมายการออม")
-    g1, g2 = st.columns(2)
-    with g1:
-        gn = st.text_input("เป้าหมาย?")
-        ga = st.number_input("จำนวนเงินที่ต้องใช้", min_value=0.0)
-        if st.button("🚩 บันทึกเป้าหมาย"):
-            conn.execute("INSERT OR REPLACE INTO goals (user_id, goal_name, goal_amount) VALUES (?,?,?)", (user_name, gn, ga))
-            conn.commit(); st.rerun()
-    with g2:
-        goal = conn.execute("SELECT * FROM goals WHERE user_id=?", (user_name,)).fetchone()
-        if goal and goal[2] > 0:
-            p = min(total_save / goal[2], 1.0)
-            st.markdown(f"<div style='background:white; border-radius:15px; padding:20px; text-align:center; border:1px solid #FFE4E1;'><h4>{goal[1]}</h4><h1 style='color:#FFB7CE;'>{p*100:.1f}%</h1></div>", unsafe_allow_html=True)
-            st.progress(p)
+    goal = conn.execute("SELECT * FROM goals WHERE user_id=?", (user_name,)).fetchone()
+    if goal:
+        p = min(total_save / goal[2], 1.0) if goal[2] > 0 else 0
+        st.write(f"**เป้าหมาย: {goal[1]}**")
+        st.progress(p)
+        st.write(f"สำเร็จแล้ว {p*100:.1f}%")
 
 with tab5:
     st.markdown("### 📖 ประวัติและแก้ไข")
     if not df.empty:
         df_sh = df.sort_values(by='id', ascending=False)
         st.dataframe(df_sh.drop(columns=['user_id', 'receipt_img']), use_container_width=True)
-        sid = st.selectbox("เลือก ID:", df_sh['id'].tolist())
-        row = df[df['id'] == sid].iloc[0]
-        if row['receipt_img']: st.image(row['receipt_img'], width=200)
-        c_e1, c_e2 = st.columns(2)
-        with c_e1:
-            ed = st.date_input("แก้ไขวัน", pd.to_datetime(row['date']))
-            ev = st.number_input("แก้ไขยอดเงิน", value=float(max(row['income'], row['expense'], row['savings'])))
-        with c_e2:
-            es = st.text_input("แก้ไขรายละเอียด", value=row['sub_category'])
-        b1, b2 = st.columns(2)
-        if b1.button("✅ ยืนยันแก้ไข"):
-            ni, ne, ns = (ev,0,0) if row['income']>0 else (0,ev,0) if row['expense']>0 else (0,0,ev)
-            conn.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, sub_category=? WHERE id=?", (ed.strftime('%Y-%m-%d'), ni, ne, ns, es, sid))
-            conn.commit(); st.rerun()
-        if b2.button("🗑️ ลบรายการ"):
-            conn.execute("DELETE FROM records WHERE id=?", (sid,))
-            conn.commit(); st.rerun()
 
 st.markdown("---")
 if st.button("🚪 ออกจากระบบ"): st.session_state.logged_in = False; st.rerun()
