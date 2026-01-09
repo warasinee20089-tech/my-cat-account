@@ -124,8 +124,7 @@ with tab2:
     for i, w in enumerate(wallets_list):
         w_df = df[df['wallet'] == w] if not df.empty else pd.DataFrame()
         bal = w_df['income'].sum() - w_df['expense'].sum() - w_df['savings'].sum() if not w_df.empty else 0.0
-        cols = [c_w1, c_w2, c_w3]
-        cols[i].metric(w, f"{bal:,.2f} ฿")
+        [c_w1, c_w2, c_w3][i].metric(w, f"{bal:,.2f} ฿")
 
 with tab3:
     st.markdown("### 📊 วิเคราะห์ข้อมูล")
@@ -149,30 +148,43 @@ with tab3:
         fig_bar.update_layout(font_family="Kanit", plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig_bar, use_container_width=True)
 
-        # แผนภูมิวงกลมคู่ (สัดส่วนหลัก vs หมวดหมู่รายจ่าย)
         st.markdown("---")
-        col_pie1, col_pie2 = st.columns(2)
-        
-        with col_pie1:
-            st.markdown("#### 🍰 สัดส่วนการใช้จ่ายและเงินออม")
-            fig_pie1 = px.pie(names=['รายจ่าย 💸', 'เงินออม 🐷'], values=[total_out, total_save], 
-                             hole=0.5, color_discrete_sequence=['#FF9AA2', '#B2E2F2'])
-            fig_pie1.update_traces(textinfo='percent+label')
-            fig_pie1.update_layout(font_family="Kanit", showlegend=False)
-            st.plotly_chart(fig_pie1, use_container_width=True)
+        # ส่วนที่ 1: แผนภูมิสัดส่วนหลัก (รายจ่าย vs ออม)
+        st.markdown("#### 🍰 1. สัดส่วนการใช้จ่ายและเงินออม")
+        fig_pie1 = px.pie(names=['รายจ่าย 💸', 'เงินออม 🐷'], values=[total_out, total_save], 
+                         hole=0.5, color_discrete_sequence=['#FF9AA2', '#B2E2F2'])
+        fig_pie1.update_traces(textinfo='percent+label')
+        fig_pie1.update_layout(font_family="Kanit")
+        st.plotly_chart(fig_pie1, use_container_width=True)
 
-        with col_pie2:
-            st.markdown("#### 🍱 รายจ่ายแยกตามหมวดหมู่")
-            exp_df = df[df['expense'] > 0]
-            if not exp_df.empty:
-                cat_exp = exp_df.groupby('category')['expense'].sum().reset_index()
-                fig_pie2 = px.pie(cat_exp, names='category', values='expense', 
-                                 hole=0.5, color_discrete_sequence=px.colors.qualitative.Pastel)
-                fig_pie2.update_traces(textinfo='percent+label')
-                fig_pie2.update_layout(font_family="Kanit", showlegend=False)
-                st.plotly_chart(fig_pie2, use_container_width=True)
-            else:
-                st.info("ยังไม่มีข้อมูลรายจ่ายเมี๊ยวว")
+        st.markdown("---")
+        # ส่วนที่ 2: แผนภูมิรายจ่ายแยกหมวดหมู่
+        st.markdown("#### 🍱 2. รายจ่ายแยกตามหมวดหมู่")
+        exp_df = df[df['expense'] > 0]
+        if not exp_df.empty:
+            cat_exp = exp_df.groupby('category')['expense'].sum().reset_index()
+            fig_pie2 = px.pie(cat_exp, names='category', values='expense', 
+                             hole=0.5, color_discrete_sequence=px.colors.qualitative.Pastel)
+            fig_pie2.update_traces(textinfo='percent+label')
+            fig_pie2.update_layout(font_family="Kanit")
+            st.plotly_chart(fig_pie2, use_container_width=True)
+        else:
+            st.info("ยังไม่มีข้อมูลรายจ่ายเมี๊ยวว")
+
+        st.markdown("---")
+        # ส่วนที่ 3: แผนภูมิรายรับแยกหมวดหมู่ (ใหม่!)
+        st.markdown("#### 💰 3. รายรับแยกตามหมวดหมู่")
+        inc_df = df[df['income'] > 0]
+        if not inc_df.empty:
+            cat_inc = inc_df.groupby('category')['income'].sum().reset_index()
+            fig_pie3 = px.pie(cat_inc, names='category', values='income', 
+                             hole=0.5, color_discrete_sequence=px.colors.qualitative.Set3)
+            fig_pie3.update_traces(textinfo='percent+label')
+            fig_pie3.update_layout(font_family="Kanit")
+            st.plotly_chart(fig_pie3, use_container_width=True)
+        else:
+            st.info("ยังไม่มีข้อมูลรายรับเมี๊ยวว")
+
     else:
         st.info("ยังไม่มีข้อมูลให้วิเคราะห์เมี๊ยวว")
 
