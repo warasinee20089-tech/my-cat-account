@@ -4,7 +4,7 @@ import sqlite3
 import plotly.express as px
 from datetime import datetime
 
-# --- 1. SETTINGS & STYLES (คงเดิมทุกอย่าง) ---
+# --- 1. SETTINGS & STYLES ---
 st.set_page_config(page_title="Meow Wallet Ultimate", layout="wide", page_icon="🐾")
 
 st.markdown("""
@@ -64,21 +64,14 @@ total_save = df['savings'].sum() if not df.empty else 0
 
 # --- 5. LOGIC: MOOD & LEVEL ---
 def get_cat_status(t_in, t_out, t_save):
-    if t_in == 0: 
-        mood = "🐱 (รอกินปลาทูอยู่เมี๊ยวว)"
-    elif (t_save/t_in) >= 0.3: 
-        mood = "😸 (ทาสออมเก่งมาก ยิ้มแก้มปริ!)"
-    elif t_out > t_in: 
-        mood = "🙀 (ทาสใช้เงินเกินงบแล้ว! ตกใจล้าวว)"
-    else: 
-        mood = "😺 (วันนี้ทำดีแล้วเมี๊ยวว)"
+    if t_in == 0: mood = "🐱 (รอกินปลาทูอยู่เมี๊ยวว)"
+    elif (t_save/t_in) >= 0.3: mood = "😸 (ทาสออมเก่งมาก ยิ้มแก้มปริ!)"
+    elif t_out > t_in: mood = "🙀 (ทาสใช้เงินเกินงบแล้ว! ตกใจล้าวว)"
+    else: mood = "😺 (วันนี้ทำดีแล้วเมี๊ยวว)"
     
-    if t_save < 5000: 
-        level = "ลูกแมวฝึกหัด 🌱"
-    elif t_save < 20000: 
-        level = "แมวเหมียวเศรษฐี ✨"
-    else: 
-        level = "ท่านเจ้าของคาเฟ่แมว 👑"
+    if t_save < 5000: level = "ลูกแมวฝึกหัด 🌱"
+    elif t_save < 20000: level = "แมวเหมียวเศรษฐี ✨"
+    else: level = "ท่านเจ้าของคาเฟ่แมว 👑"
     return mood, level
 
 mood_text, level_text = get_cat_status(total_in, total_out, total_save)
@@ -130,33 +123,19 @@ with tab2:
 with tab3:
     st.markdown("### 📊 วิเคราะห์")
     if not df.empty:
-        # --- ส่วนของเกจวัดงบประมาณ (คงฟังก์ชันไว้แต่ลบชื่อหัวข้อเดิมออก) ---
         monthly_limit = st.number_input("ตั้งงบรายจ่ายต่อเดือน (฿):", min_value=1.0, value=10000.0)
         current_month_exp = df[df['date'].dt.month == datetime.now().month]['expense'].sum()
-        
         usage_pct = min(current_month_exp / monthly_limit, 1.0)
         color = "green" if usage_pct < 0.5 else "orange" if usage_pct < 0.8 else "red"
-        
         st.write(f"การใช้จ่ายเดือนนี้: {current_month_exp:,.2f} / {monthly_limit:,.2f} ฿")
-        st.markdown(f"""
-            <div style='width:100%; background:#eee; border-radius:10px; margin-bottom: 25px;'>
-                <div style='width:{usage_pct*100}%; background:{color}; height:20px; border-radius:10px;'></div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        if usage_pct >= 0.9: 
-            st.error("🙀 ทาสหยุดช้อปได้แล้ว! อาหารแมวจะหมดแล้วนะ!")
-
-        # --- กราฟเปรียบเทียบรายเดือน ---
+        st.markdown(f"<div style='width:100%; background:#eee; border-radius:10px; margin-bottom: 25px;'><div style='width:{usage_pct*100}%; background:{color}; height:20px; border-radius:10px;'></div></div>", unsafe_allow_html=True)
+        if usage_pct >= 0.9: st.error("🙀 ทาสหยุดช้อปได้แล้ว! อาหารแมวจะหมดแล้วนะ!")
         st.markdown("---")
         st.markdown("#### เปรียบเทียบรายรับ-รายจ่าย รายเดือน")
         df['month_year'] = df['date'].dt.strftime('%Y-%m')
         monthly_df = df.groupby('month_year')[['income', 'expense']].sum().reset_index()
-        fig_bar = px.bar(monthly_df, x='month_year', y=['income', 'expense'], barmode='group', 
-                         color_discrete_map={'income': '#FF69B4', 'expense': '#FF5252'})
+        fig_bar = px.bar(monthly_df, x='month_year', y=['income', 'expense'], barmode='group', color_discrete_map={'income': '#FF69B4', 'expense': '#FF5252'})
         st.plotly_chart(fig_bar, use_container_width=True)
-
-        # --- กราฟวงกลมสรุป ---
         st.markdown("---")
         fig_pie = px.pie(names=['รายจ่าย', 'เงินออม'], values=[total_out, total_save], hole=0.4, color_discrete_sequence=['#FF5252', '#FF69B4'])
         st.plotly_chart(fig_pie, use_container_width=True)
@@ -167,22 +146,16 @@ with tab4:
     st.markdown("### 🎯 การออม (Saving Level Up)")
     st.metric("เงินออมสะสมทั้งหมด", f"{total_save:,.2f} ฿")
     st.write(f"ระดับปัจจุบัน: **{level_text}**")
-    
-    # Progress to Next Level
     next_goal = 5000 if total_save < 5000 else 20000 if total_save < 20000 else 50000
     p_val = min(total_save / next_goal, 1.0)
     st.write(f"เป้าหมายต่อไป: {next_goal:,.0f} ฿")
     st.progress(p_val)
-    
-    if total_in > 0:
-        st.write(f"คิดเป็น {(total_save/total_in)*100:.1f}% ของรายรับ")
 
 with tab5:
-    st.markdown("### 📖 ประวัติและจัดการ")
+    st.markdown("### 📖 ประวัติและจัดการ (แก้ไข/ลบ รายรับ-จ่าย-ออม)")
     if not df.empty:
         csv = df.to_csv(index=False).encode('utf-8-sig')
         st.download_button("📥 ดาวน์โหลดรายงาน (CSV)", data=csv, file_name=f'meow_report_{user_name}.csv', mime='text/csv')
-        
         st.divider()
         df_display = df.sort_values(by='id', ascending=False)
         st.dataframe(df_display.drop(columns=['user_id']), use_container_width=True)
@@ -190,34 +163,35 @@ with tab5:
         selected_id = st.selectbox("เลือก ID รายการที่ต้องการจัดการ:", df_display['id'].tolist())
         if selected_id:
             row = df[df['id'] == selected_id].iloc[0]
+            # แสดงประเภทรายการให้ผู้ใช้เห็นชัดเจนก่อนแก้ไข
+            current_type = "รายรับ 💰" if row['income'] > 0 else "รายจ่าย 💸" if row['expense'] > 0 else "เงินออม 🐷"
+            st.info(f"รายการที่เลือกคือ: {current_type}")
+
             col_e1, col_e2 = st.columns(2)
             with col_e1:
-                # แก้ไขการจัดการวันที่ให้เสถียรขึ้น
                 new_date = st.date_input("แก้ไขวันที่", row['date'].to_pydatetime())
-                new_amt = st.number_input("แก้ไขจำนวนเงิน", value=float(max(row['income'], row['expense'], row['savings'])))
+                # แก้ไขการดึงค่าเริ่มต้นของจำนวนเงินให้รองรับทั้ง 3 ประเภท
+                current_amt = float(row['income'] if row['income'] > 0 else row['expense'] if row['expense'] > 0 else row['savings'])
+                new_amt = st.number_input("แก้ไขจำนวนเงิน", value=current_amt)
             with col_e2:
                 new_sub = st.text_input("แก้ไขรายละเอียด", value=row['sub_category'])
+                new_wallet = st.selectbox("แก้ไขช่องทาง", ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"], index=["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"].index(row['wallet']))
                 
             c_btn1, c_btn2 = st.columns(2)
             if c_btn1.button("✅ ยืนยันการแก้ไข", use_container_width=True):
-                # ตรวจสอบประเภทเพื่อ Update ค่าให้ถูกช่อง
-                if row['income'] > 0: 
-                    new_vals = (new_amt, 0, 0)
-                elif row['expense'] > 0: 
-                    new_vals = (0, new_amt, 0)
-                else: 
-                    new_vals = (0, 0, new_amt)
+                # ตรวจสอบประเภทเพื่อ Update ค่ากลับไปที่ Column เดิมให้ถูกต้อง
+                n_inc, n_exp, n_sav = (new_amt, 0, 0) if row['income'] > 0 else (0, new_amt, 0) if row['expense'] > 0 else (0, 0, new_amt)
                 
-                c.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, sub_category=? WHERE id=?", 
-                          (new_date.strftime('%Y-%m-%d'), new_vals[0], new_vals[1], new_vals[2], new_sub, selected_id))
+                c.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, sub_category=?, wallet=? WHERE id=?", 
+                          (new_date.strftime('%Y-%m-%d'), n_inc, n_exp, n_sav, new_sub, new_wallet, selected_id))
                 conn.commit()
-                st.success("แก้ไขข้อมูลเรียบร้อย!")
+                st.success("อัปเดตข้อมูล (รวมถึงเงินออม) เรียบร้อยแล้ว!")
                 st.rerun()
                 
             if c_btn2.button("🗑️ ลบรายการนี้", use_container_width=True):
                 c.execute("DELETE FROM records WHERE id=?", (selected_id,))
                 conn.commit()
-                st.success("ลบรายการแล้ว!")
+                st.success("ลบรายการเรียบร้อย!")
                 st.rerun()
     else:
         st.info("ยังไม่มีข้อมูลเมี๊ยวว")
