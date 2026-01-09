@@ -4,7 +4,7 @@ import sqlite3
 import plotly.express as px
 from datetime import datetime
 
-# --- 1. SETTINGS & STYLES ---
+# --- 1. SETTINGS & STYLES (คงเดิมทุกอย่าง) ---
 st.set_page_config(page_title="Meow Wallet Ultimate", layout="wide", page_icon="🐾")
 
 st.markdown("""
@@ -84,7 +84,6 @@ def get_cat_status(t_in, t_out, t_save):
 mood_text, level_text = get_cat_status(total_in, total_out, total_save)
 
 # --- 6. MAIN UI ---
-# แก้ไขจุดที่ทำให้เกิด SyntaxError จากรูปภาพ
 st.markdown(f"<div class='main-title'>🐾 Meow Wallet: {user_name} 🐾</div>", unsafe_allow_html=True)
 st.markdown(f"<h3 style='text-align: center; color: #FF69B4;'>{mood_text}</h3>", unsafe_allow_html=True)
 st.markdown(f"<p style='text-align: center; font-size: 18px;'>ระดับทาส: <b>{level_text}</b></p>", unsafe_allow_html=True)
@@ -129,35 +128,35 @@ with tab2:
         cols[i].metric(w, f"{bal:,.2f} ฿")
 
 with tab3:
-    st.markdown("### 📊 วิเคราะห์ (🌡️ Meow Thermometer)")
+    st.markdown("### 📊 วิเคราะห์")
     if not df.empty:
-        # 🌡️ Budget Alert
-        st.markdown("#### เกจวัดการใช้จ่ายเดือนนี้")
+        # --- ส่วนของเกจวัดงบประมาณ (คงฟังก์ชันไว้แต่ลบชื่อหัวข้อเดิมออก) ---
         monthly_limit = st.number_input("ตั้งงบรายจ่ายต่อเดือน (฿):", min_value=1.0, value=10000.0)
         current_month_exp = df[df['date'].dt.month == datetime.now().month]['expense'].sum()
         
         usage_pct = min(current_month_exp / monthly_limit, 1.0)
         color = "green" if usage_pct < 0.5 else "orange" if usage_pct < 0.8 else "red"
+        
+        st.write(f"การใช้จ่ายเดือนนี้: {current_month_exp:,.2f} / {monthly_limit:,.2f} ฿")
         st.markdown(f"""
-            <div style='width:100%; background:#eee; border-radius:10px;'>
+            <div style='width:100%; background:#eee; border-radius:10px; margin-bottom: 25px;'>
                 <div style='width:{usage_pct*100}%; background:{color}; height:20px; border-radius:10px;'></div>
             </div>
             """, unsafe_allow_html=True)
-        st.write(f"ใช้ไปแล้ว {current_month_exp:,.2f} / {monthly_limit:,.2f} ฿")
+        
         if usage_pct >= 0.9: 
             st.error("🙀 ทาสหยุดช้อปได้แล้ว! อาหารแมวจะหมดแล้วนะ!")
 
-        # 📅 Monthly Comparison
+        # --- กราฟเปรียบเทียบรายเดือน ---
         st.markdown("---")
-        st.markdown("#### เปรียบเทียบรายเดือน")
+        st.markdown("#### เปรียบเทียบรายรับ-รายจ่าย รายเดือน")
         df['month_year'] = df['date'].dt.strftime('%Y-%m')
         monthly_df = df.groupby('month_year')[['income', 'expense']].sum().reset_index()
         fig_bar = px.bar(monthly_df, x='month_year', y=['income', 'expense'], barmode='group', 
-                         color_discrete_map={'income': '#FF69B4', 'expense': '#FF5252'},
-                         title="รายรับ vs รายจ่าย รายเดือน")
+                         color_discrete_map={'income': '#FF69B4', 'expense': '#FF5252'})
         st.plotly_chart(fig_bar, use_container_width=True)
 
-        # Pie Chart
+        # --- กราฟวงกลมสรุป ---
         st.markdown("---")
         fig_pie = px.pie(names=['รายจ่าย', 'เงินออม'], values=[total_out, total_save], hole=0.4, color_discrete_sequence=['#FF5252', '#FF69B4'])
         st.plotly_chart(fig_pie, use_container_width=True)
@@ -193,7 +192,7 @@ with tab5:
             row = df[df['id'] == selected_id].iloc[0]
             col_e1, col_e2 = st.columns(2)
             with col_e1:
-                # แก้ไขจุดที่ทำให้วงเล็บไม่ปิดในรูปที่ 2
+                # แก้ไขการจัดการวันที่ให้เสถียรขึ้น
                 new_date = st.date_input("แก้ไขวันที่", row['date'].to_pydatetime())
                 new_amt = st.number_input("แก้ไขจำนวนเงิน", value=float(max(row['income'], row['expense'], row['savings'])))
             with col_e2:
@@ -212,15 +211,16 @@ with tab5:
                 c.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, sub_category=? WHERE id=?", 
                           (new_date.strftime('%Y-%m-%d'), new_vals[0], new_vals[1], new_vals[2], new_sub, selected_id))
                 conn.commit()
-                st.success("แก้ไขแล้ว!")
+                st.success("แก้ไขข้อมูลเรียบร้อย!")
                 st.rerun()
                 
             if c_btn2.button("🗑️ ลบรายการนี้", use_container_width=True):
                 c.execute("DELETE FROM records WHERE id=?", (selected_id,))
                 conn.commit()
+                st.success("ลบรายการแล้ว!")
                 st.rerun()
     else:
-        st.info("ยังไม่มีข้อมูล")
+        st.info("ยังไม่มีข้อมูลเมี๊ยวว")
 
 st.markdown("---")
 if st.button("🚪 ออกจากระบบ"):
