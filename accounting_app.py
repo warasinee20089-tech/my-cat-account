@@ -122,3 +122,129 @@ html_code = """
         
         .item-text { font-size: 16px; font-weight: 500; }
         .item-date { font-size: 12px; color: #888; }
+        .item-amount { font-weight: bold; font-size: 18px; }
+        .plus .item-amount { color: var(--green); }
+        .minus .item-amount { color: var(--red); }
+        
+        .btn-del {
+            background: #FFF5F5; color: #F56565; border: none;
+            width: 30px; height: 30px; border-radius: 50%;
+            cursor: pointer; margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <h2 style="text-align:center; color:#4A5568;">🐱 Meow Wallet</h2>
+        
+        <div class="wallet-card">
+            <div class="balance-label">ยอดเงินคงเหลือ</div>
+            <div class="balance-value">฿<span id="balance">0.00</span></div>
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div>รายรับ</div>
+                    <div class="stat-value" style="color:#E6FFFA">+<span id="money-plus">0.00</span></div>
+                </div>
+                <div class="stat-item">
+                    <div>รายจ่าย</div>
+                    <div class="stat-value" style="color:#FFF5F5">-<span id="money-minus">0.00</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="add-box">
+            <input type="text" id="text" placeholder="📝 รายการ (เช่น อาหารแมว)">
+            <input type="number" id="amount" placeholder="💰 จำนวนเงิน">
+            <select id="type">
+                <option value="expense">🔴 รายจ่าย</option>
+                <option value="income">🟢 รายรับ</option>
+            </select>
+            <button class="btn-add" onclick="addTransaction()">บันทึกรายการ</button>
+        </div>
+
+        <h3 style="color:#718096;">ประวัติรายการ</h3>
+        <ul id="list" style="list-style: none; padding: 0;"></ul>
+    </div>
+
+    <script>
+        const balanceEl = document.getElementById('balance');
+        const money_plusEl = document.getElementById('money-plus');
+        const money_minusEl = document.getElementById('money-minus');
+        const listEl = document.getElementById('list');
+        const textEl = document.getElementById('text');
+        const amountEl = document.getElementById('amount');
+        const typeEl = document.getElementById('type');
+
+        // โหลดข้อมูลจากเครื่อง
+        let transactions = JSON.parse(localStorage.getItem('meow_transactions')) || [];
+
+        function init() {
+            listEl.innerHTML = '';
+            transactions.forEach(addTransactionDOM);
+            updateValues();
+        }
+
+        function addTransaction() {
+            if (textEl.value.trim() === '' || amountEl.value.trim() === '') {
+                alert('กรุณากรอกข้อมูลให้ครบถ้วน'); return;
+            }
+            const amount = +amountEl.value;
+            const isExpense = typeEl.value === 'expense';
+            const transaction = {
+                id: Math.floor(Math.random() * 100000000),
+                text: textEl.value,
+                amount: isExpense ? -amount : amount,
+                date: new Date().toLocaleDateString('th-TH')
+            };
+            transactions.push(transaction);
+            addTransactionDOM(transaction);
+            updateValues();
+            localStorage.setItem('meow_transactions', JSON.stringify(transactions));
+            textEl.value = ''; amountEl.value = '';
+        }
+
+        function addTransactionDOM(transaction) {
+            const sign = transaction.amount < 0 ? '-' : '+';
+            const item = document.createElement('li');
+            item.className = transaction.amount < 0 ? 'list-item minus' : 'list-item plus';
+            item.innerHTML = `
+                <div>
+                    <div class="item-text">\${transaction.text}</div>
+                    <div class="item-date">\${transaction.date}</div>
+                </div>
+                <div style="display:flex; align-items:center;">
+                    <span class="item-amount">\${sign}\${Math.abs(transaction.amount).toLocaleString()}</span>
+                    <button class="btn-del" onclick="removeTransaction(\${transaction.id})">x</button>
+                </div>
+            `;
+            listEl.insertBefore(item, listEl.firstChild);
+        }
+
+        function updateValues() {
+            const amounts = transactions.map(t => t.amount);
+            const total = amounts.reduce((acc, item) => acc + item, 0).toFixed(2);
+            const income = amounts.filter(item => item > 0).reduce((acc, item) => acc + item, 0).toFixed(2);
+            const expense = (amounts.filter(item => item < 0).reduce((acc, item) => acc + item, 0) * -1).toFixed(2);
+            
+            balanceEl.innerText = Number(total).toLocaleString();
+            money_plusEl.innerText = Number(income).toLocaleString();
+            money_minusEl.innerText = Number(expense).toLocaleString();
+        }
+
+        function removeTransaction(id) {
+            if(confirm('ลบรายการนี้?')) {
+                transactions = transactions.filter(t => t.id !== id);
+                localStorage.setItem('meow_transactions', JSON.stringify(transactions));
+                init();
+            }
+        }
+        init();
+    </script>
+</body>
+</html>
+"""
+
+# --- 3. สั่งให้แสดงผล ---
+# ต้องมีบรรทัดนี้ ไม่งั้นหน้าจอจะว่างเปล่า
+components.html(html_code, height=850, scrolling=True)
