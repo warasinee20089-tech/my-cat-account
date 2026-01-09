@@ -5,16 +5,16 @@ from datetime import datetime
 import plotly.express as px
 
 # --- 1. ตั้งค่าหน้าเว็บ ---
-st.set_page_config(page_title="Meow Wallet", page_icon="🐾", layout="wide")
+st.set_page_config(page_title="กระเป๋าเงินเหมียว", page_icon="🐾", layout="wide")
 
-# --- 2. ฟังก์ชันแก้ปัญหา Rerun (ปลอดภัย) ---
+# --- 2. ฟังก์ชันแก้ปัญหา Rerun ---
 def safe_rerun():
     try:
         if hasattr(st, 'rerun'): st.rerun()
         elif hasattr(st, 'experimental_rerun'): st.experimental_rerun()
     except: pass
 
-# --- 3. CSS (ธีมสีชมพูตามภาพ) ---
+# --- 3. CSS (ธีมสีชมพู) ---
 st.markdown("""
 <style>
     .stApp { background-color: #FFF0F5; }
@@ -25,20 +25,22 @@ st.markdown("""
         height: 45px;
         font-weight: bold;
         border: none;
+        font-size: 16px;
     }
     .stButton>button:hover { background-color: #C71585; }
-    h1, h2, h3 { color: #800080; font-family: sans-serif; }
-    /* ปรับช่องกรอกข้อมูลให้ดูสะอาดตา */
-    .stTextInput>div>div>input, .stNumberInput>div>div>input, .stSelectbox>div>div>div {
+    h1, h2, h3 { color: #800080; font-family: 'Sarabun', sans-serif; }
+    
+    /* ปรับช่องกรอกข้อมูลให้สวยงาม */
+    .stTextInput>div>div>input, .stSelectbox>div>div>div {
         background-color: #F0F2F6;
         border-radius: 8px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. ฐานข้อมูล (V11 ใหม่ล่าสุด) ---
+# --- 4. ฐานข้อมูล (V12 Final) ---
 def init_db():
-    conn = sqlite3.connect('meow_wallet_v11.db', check_same_thread=False)
+    conn = sqlite3.connect('meow_wallet_v12.db', check_same_thread=False)
     c = conn.cursor()
     c.execute('''
         CREATE TABLE IF NOT EXISTS transactions (
@@ -56,6 +58,20 @@ def init_db():
 
 conn = init_db()
 
+# --- ฟังก์ชันดึงหมวดหมู่ (รวมของเก่า + ของที่เคยพิมพ์) ---
+def get_all_categories():
+    default_cats = ["ค่าอาหาร 🍲", "เดินทาง 🚗", "ช้อปปิ้ง 🛍️", "ของใช้ 🧻", "ค่าน้ำ/ไฟ 💡", "เงินเดือน 💰", "เงินออม 🐷", "อื่นๆ"]
+    try:
+        df = pd.read_sql("SELECT DISTINCT category FROM transactions", conn)
+        if not df.empty:
+            db_cats = df['category'].dropna().unique().tolist()
+            # เอาค่าใน DB มารวมกับค่าพื้นฐาน
+            all_cats = list(set(default_cats + db_cats))
+            all_cats.sort()
+            return all_cats
+    except: pass
+    return default_cats
+
 # --- 5. ระบบล็อกอิน ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'username' not in st.session_state: st.session_state.username = ""
@@ -70,33 +86,47 @@ def logout():
 
 # --- 6. ส่วนแสดงผล ---
 if not st.session_state.logged_in:
-    # หน้า Login เรียบง่าย
+    # === หน้า Login (แบบเดิมที่คุณชอบ) ===
+    st.write("")
+    st.write("")
     st.markdown("<h1 style='text-align: center;'>🐾 กระเป๋าเงินเหมียว 🐾</h1>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; font-size: 80px;'>🐱</div>", unsafe_allow_html=True)
+    
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        st.text_input("ชื่อทาสแมว:", key="login_name_input")
-        st.button("เข้าสู่ระบบ 🚀", on_click=login, use_container_width=True)
+        st.text_input("ชื่อทาสแมว:", key="login_name_input", placeholder="พิมพ์ชื่อตรงนี้เลย...")
+        st.write("")
+        st.button("เข้าสู่ระบบ 🐾", on_click=login, use_container_width=True)
 
 else:
-    # หน้าหลัก
-    st.write(f"👤 ผู้ใช้งาน: **{st.session_state.username}**")
+    # === หน้าหลัก ===
+    st.markdown(f"<div style='text-align: right; color: #DB7093;'>👤 สวัสดี: <b>{st.session_state.username}</b></div>", unsafe_allow_html=True)
     
     tab1, tab2, tab3, tab4 = st.tabs(["📝 บันทึก", "💰 กระเป๋าเงิน", "📊 กราฟ", "⚙️ แก้ไข"])
 
-    # === TAB 1: บันทึก (จัดเรียงตามรูปภาพเป๊ะๆ) ===
+    # === TAB 1: บันทึก (Layout เป๊ะ + เพิ่มหมวดได้) ===
     with tab1:
         st.header("✨ เพิ่มรายการใหม่")
         
-        # ใช้ Form เพื่อรวมปุ่มบันทึกไว้ด้านล่างสุด
         with st.form("entry_form", clear_on_submit=True):
-            # แถว 1: วันที่ | หมวดหมู่
+            # แถว 1: วันที่ | หมวดหมู่ (มีตัวเลือกเพิ่มใหม่)
             c1, c2 = st.columns(2)
             with c1:
                 date_val = st.date_input("📅 วันที่", datetime.now())
             with c2:
-                # รายการหมวดหมู่ตั้งต้น (ตามภาพเป็นแบบเลือก)
-                cats = ["ค่าอาหาร 🍲", "เดินทาง 🚗", "ช้อปปิ้ง 🛍️", "ของใช้ 🧻", "ค่าน้ำ/ไฟ 💡", "เงินเดือน 💰", "เงินออม 🐷", "อื่นๆ"]
-                category = st.selectbox("📂 หมวดหมู่", cats)
+                # โหลดหมวดหมู่ทั้งหมด
+                all_cats = get_all_categories()
+                # เพิ่มตัวเลือกพิเศษไว้ล่างสุด
+                cat_options = all_cats + ["➕ เพิ่มหมวดใหม่..."]
+                
+                cat_choice = st.selectbox("📂 หมวดหมู่", cat_options)
+                
+                # ถ้าเลือกเพิ่มใหม่ ให้โชว์ช่องพิมพ์
+                if cat_choice == "➕ เพิ่มหมวดใหม่...":
+                    custom_cat = st.text_input("✍️ พิมพ์ชื่อหมวดที่ต้องการ", placeholder="เช่น ค่าวัคซีน, ใส่ซอง")
+                    category = custom_cat if custom_cat else "อื่นๆ"
+                else:
+                    category = cat_choice
 
             # แถว 2: ช่องทาง | รายละเอียด
             c3, c4 = st.columns(2)
@@ -105,30 +135,26 @@ else:
             with c4:
                 description = st.text_input("📝 รายละเอียด", placeholder="เช่น ข้าวมันไก่")
 
-            # แถว 3: ประเภท (แนวนอน) | จำนวนเงิน
+            # แถว 3: ประเภท | จำนวนเงิน
             c5, c6 = st.columns(2)
             with c5:
-                # ใช้ horizontal=True เพื่อให้เรียงแนวนอนตามภาพ
                 trans_type = st.radio("🏷️ ประเภท", ["รายจ่าย 💸", "รายรับ 💰", "เงินออม 🐷"], horizontal=True)
             with c6:
                 amount = st.number_input("💵 จำนวนเงิน", min_value=0.0, format="%.2f")
 
-            st.write("") # เว้นบรรทัดนิดหน่อยก่อนปุ่ม
+            st.write("")
             
-            # ปุ่มบันทึก (เต็มความกว้าง)
+            # ปุ่มบันทึกยาวเต็ม
             submitted = st.form_submit_button("💖 บันทึกรายการ", use_container_width=True)
 
             if submitted:
-                if amount > 0:
-                    c = conn.cursor()
-                    c.execute("INSERT INTO transactions (date, category, source, description, type, amount) VALUES (?, ?, ?, ?, ?, ?)",
-                              (date_val, category, source, description, trans_type, amount))
-                    conn.commit()
-                    st.success(f"บันทึก {amount} บาท เรียบร้อยแล้ว!")
-                else:
-                    st.warning("กรุณาใส่จำนวนเงินด้วยนะ")
+                c = conn.cursor()
+                c.execute("INSERT INTO transactions (date, category, source, description, type, amount) VALUES (?, ?, ?, ?, ?, ?)",
+                          (date_val, category, source, description, trans_type, amount))
+                conn.commit()
+                st.success(f"บันทึกหมวด '{category}' เรียบร้อยแล้ว!")
 
-    # === TAB 2: กระเป๋าเงิน (Dashboard พื้นฐาน) ===
+    # === TAB 2: กระเป๋าเงิน ===
     with tab2:
         st.header("🏛️ ยอดคงเหลือ")
         df = pd.read_sql_query("SELECT * FROM transactions", conn)
@@ -161,15 +187,26 @@ else:
         df = pd.read_sql_query("SELECT * FROM transactions ORDER BY id DESC", conn)
         if not df.empty:
             df['ลบ'] = False
+            # ตารางแก้ไขได้
             edited_df = st.data_editor(df, column_config={"ลบ": st.column_config.CheckboxColumn(width="small")}, disabled=["id"], hide_index=True, use_container_width=True)
-            if st.button("🗑️ ลบที่เลือก"):
+            
+            col_del, col_save = st.columns(2)
+            if col_del.button("🗑️ ลบที่เลือก"):
                 ids = edited_df[edited_df['ลบ']]['id'].tolist()
                 for i in ids: conn.cursor().execute("DELETE FROM transactions WHERE id=?", (i,))
                 conn.commit()
                 safe_rerun()
+            
+            if col_save.button("💾 บันทึกการแก้ไข"):
+                # ตัดคอลัมน์ 'ลบ' ออกก่อนบันทึก
+                save_df = edited_df.drop(columns=['ลบ'])
+                conn.cursor().execute("DELETE FROM transactions")
+                save_df.to_sql('transactions', conn, if_exists='append', index=False)
+                conn.commit()
+                safe_rerun()
         else: st.info("ไม่มีข้อมูล")
 
-    # ปุ่มออกจากระบบ (อยู่นอก Tabs ด้านล่างสุดตามภาพ)
+    # ปุ่มออกจากระบบ
     st.markdown("---")
     if st.button("🚪 ออกจากระบบ"):
         logout()
