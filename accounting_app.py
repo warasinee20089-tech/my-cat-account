@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 import plotly.express as px
 
-# --- 1. ตั้งค่าหน้าเว็บและ CSS ธีมสีชมพู ---
+# --- 1. ตั้งค่าหน้าเว็บ ---
 st.set_page_config(page_title="กระเป๋าเงินเหมียว", page_icon="🐾", layout="wide")
 
 st.markdown("""
@@ -16,9 +16,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. ส่วนจัดการฐานข้อมูล ---
+# --- 2. ฐานข้อมูล ---
 def init_db():
-    conn = sqlite3.connect('meow_wallet_v22.db', check_same_thread=False)
+    conn = sqlite3.connect('meow_wallet_final.db', check_same_thread=False)
     c = conn.cursor()
     c.execute('''
         CREATE TABLE IF NOT EXISTS transactions (
@@ -36,6 +36,21 @@ def init_db():
 
 conn = init_db()
 
+# --- ฟังก์ชันดึงหมวดหมู่ทั้งหมดที่เคยใช้ ---
+def get_all_categories():
+    # หมวดหมู่พื้นฐาน
+    default_cats = ["ค่าอาหาร 🍲", "เดินทาง 🚗", "ช้อปปิ้ง 🛍️", "เงินเดือน 💰", "ขายของ 📦", "เงินออม 🐷"]
+    try:
+        # ดึงหมวดหมู่ที่เคยบันทึกไว้ใน DB มาด้วย
+        df = pd.read_sql("SELECT DISTINCT category FROM transactions", conn)
+        db_cats = df['category'].dropna().unique().tolist()
+        # รวมกันแล้วตัดตัวซ้ำ
+        all_cats = list(set(default_cats + db_cats))
+        all_cats.sort()
+        return all_cats
+    except:
+        return default_cats
+
 # --- 3. ระบบล็อกอิน ---
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -52,6 +67,7 @@ def logout():
 
 # --- 4. หน้าจอแสดงผล ---
 if not st.session_state.logged_in:
+    # หน้า Login
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<h1 style='text-align: center;'>🐾 กระเป๋าเงินเหมียว 🐾</h1>", unsafe_allow_html=True)
@@ -60,40 +76,31 @@ if not st.session_state.logged_in:
         st.button("เข้าสู่ระบบ 🐾", on_click=login, use_container_width=True)
 
 else:
+    # หน้าหลัก
     st.markdown(f"<div style='text-align: right; color: #DB7093;'>👤 สวัสดี: <b>{st.session_state.username}</b></div>", unsafe_allow_html=True)
     
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "🎯 การออม", "📖 ประวัติและแก้ไข"])
 
-    # ---------------- TAB 1: บันทึก (แก้ไขให้ใช้ง่ายขึ้น) ----------------
+    # ---------------- TAB 1: บันทึก (ระบบหมวดหมู่ฉลาด) ----------------
     with tab1:
-        st.header(f"✨ จดรายการกันเถอะ {st.session_state.username}")
+        st.header(f"✨ จดรายการใหม่")
         with st.form("transaction_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             date_val = col1.date_input("📅 วันที่", datetime.now())
             
-            # --- แก้ไขส่วนเลือกหมวดหมู่ ---
-            cat_options = [
-                "ค่าอาหาร 🍲", 
-                "เดินทาง 🚗", 
-                "ค่าน้ำ/ไฟ ⚡",      # เพิ่มให้ใหม่
-                "ค่าของใช้แมว 🐱",   # เพิ่มให้ใหม่
-                "ช้อปปิ้ง 🛍️", 
-                "เงินเดือน 💰", 
-                "ขายของ 📦", 
-                "เงินออม 🐷", 
-                "📝 (กดตรงนี้เพื่อพิมพ์เอง)..." # เปลี่ยนชื่อให้ชัด
-            ]
+            # --- ดึงหมวดหมู่เก่าๆ มาโชว์ ---
+            existing_cats = get_all_categories()
+            # เพิ่มตัวเลือก "พิมพ์ใหม่" ไว้ล่างสุด
+            cat_options = existing_cats + ["➕ พิมพ์หมวดใหม่..."]
             
-            cat_choice = col2.selectbox("📂 หมวดหมู่", cat_options)
+            cat_choice = col2.selectbox("📂 หมวดหมู่ (ระบบจะจำที่คุณเคยพิมพ์)", cat_options)
             
-            # ถ้าเลือกตัวสุดท้าย ให้แสดงช่องพิมพ์
-            if cat_choice == "📝 (กดตรงนี้เพื่อพิมพ์เอง)...":
-                st.info("👇 พิมพ์ชื่อหมวดหมู่ที่ต้องการในช่องข้างล่างนี้ได้เลย")
-                custom_cat = col2.text_input("✍️ ระบุหมวดหมู่เอง", placeholder="เช่น ค่าวัคซีน, ใส่ซองงานแต่ง")
+            # ถ้าเลือกพิมพ์ใหม่ ให้โชว์ช่องกรอก
+            if cat_choice == "➕ พิมพ์หมวดใหม่...":
+                custom_cat = col2.text_input("✍️ พิมพ์ชื่อหมวดที่ต้องการ", placeholder="เช่น ค่าวัคซีน, ใส่ซองงานแต่ง")
                 category = custom_cat if custom_cat else "อื่นๆ"
             else:
                 category = cat_choice
-            # ---------------------------
             
             col3, col4 = st.columns(2)
             source = col3.selectbox("👛 ช่องทาง", ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"])
@@ -108,7 +115,7 @@ else:
                 c.execute("INSERT INTO transactions (date, category, source, description, type, amount) VALUES (?, ?, ?, ?, ?, ?)",
                           (date_val, category, source, description, trans_type, amount))
                 conn.commit()
-                st.success(f"บันทึกหมวด '{category}' เรียบร้อย! 🐱")
+                st.success(f"บันทึกหมวด '{category}' แล้ว! (ครั้งหน้าจะมีให้เลือกเลย)")
 
     # ---------------- TAB 2: กระเป๋า ----------------
     with tab2:
@@ -134,38 +141,36 @@ else:
         expense_df = df[df['type'] == "รายจ่าย 💸"]
         
         if not expense_df.empty:
-            fig = px.pie(expense_df, values='amount', names='category', title='หมดเงินไปกับอะไรบ้าง?', hole=0.4)
+            fig = px.pie(expense_df, values='amount', names='category', title='สัดส่วนค่าใช้จ่ายจริง', hole=0.4)
             st.plotly_chart(fig)
         else:
-            st.info("ยังไม่มีรายจ่าย")
+            st.info("ยังไม่มีข้อมูลรายจ่าย")
 
     # ---------------- TAB 4: การออม ----------------
     with tab4:
-        st.header("🎯 กระปุกหมูออมสิน")
+        st.header("🎯 เงินออม")
         df = pd.read_sql_query("SELECT * FROM transactions", conn)
         savings = df[df['type'] == "เงินออม 🐷"]['amount'].sum()
         
-        col_pig1, col_pig2 = st.columns([1, 3])
-        with col_pig1:
-            st.markdown("<div style='font-size: 80px;'>🐷</div>", unsafe_allow_html=True)
-        with col_pig2:
-            st.metric("เงินออมสะสมทั้งหมด", f"{savings:,.2f} ฿")
-            st.progress(min(savings/10000, 1.0))
+        st.metric("ยอดเงินออมสะสม", f"{savings:,.2f} ฿")
+        st.progress(min(savings/10000, 1.0))
 
-    # ---------------- TAB 5: ประวัติและแก้ไข ----------------
+    # ---------------- TAB 5: ประวัติและแก้ไข (อิสระเต็มที่) ----------------
     with tab5:
         st.header("📖 จัดการรายการ")
-        
         df = pd.read_sql_query("SELECT * FROM transactions ORDER BY id DESC", conn)
         
         if not df.empty:
             df['ลบ?'] = False
-            st.info("💡 วิธีลบ: ติ๊กถูก ✅ ในช่อง 'ลบ?' ท้ายรายการ แล้วกดปุ่มสีแดง")
+            st.info("💡 วิธีใช้: แก้ไขข้อความในตารางได้ทุกช่อง (รวมถึงหมวดหมู่) / ติ๊กช่อง 'ลบ?' เพื่อลบ")
             
+            # ตั้งค่า Column Config ให้แก้ไขได้อิสระ
             edited_df = st.data_editor(
                 df, 
                 column_config={
-                    "ลบ?": st.column_config.CheckboxColumn("ติ๊กเพื่อลบ", default=False)
+                    "ลบ?": st.column_config.CheckboxColumn("ลบ?", width="small"),
+                    "category": st.column_config.TextColumn("หมวดหมู่ (แก้ได้เลย)"), # ให้พิมพ์แก้ได้เลย ไม่ต้องเลือก
+                    "amount": st.column_config.NumberColumn("จำนวนเงิน", format="%.2f"),
                 },
                 disabled=["id"],
                 hide_index=True,
@@ -173,26 +178,32 @@ else:
                 key="editor"
             )
 
-            if st.button("🗑️ ลบรายการที่เลือก", type="primary"):
-                to_delete = edited_df[edited_df['ลบ?'] == True]['id'].tolist()
-                if to_delete:
-                    cursor = conn.cursor()
-                    for item_id in to_delete:
-                        cursor.execute("DELETE FROM transactions WHERE id=?", (item_id,))
-                    conn.commit()
-                    st.success(f"ลบไป {len(to_delete)} รายการเรียบร้อย!")
-                    st.rerun()
+            col_btn1, col_btn2 = st.columns(2)
             
-            if st.button("💾 บันทึกการแก้ไขข้อมูล"):
-                save_df = edited_df.drop(columns=['ลบ?'])
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM transactions") 
-                save_df.to_sql('transactions', conn, if_exists='append', index=False)
-                conn.commit()
-                st.success("บันทึกข้อมูลที่แก้ไขแล้ว!")
-                st.rerun()
+            # ปุ่มลบ
+            with col_btn1:
+                if st.button("🗑️ ลบรายการที่ติ๊กเลือก", type="primary", use_container_width=True):
+                    to_delete = edited_df[edited_df['ลบ?'] == True]['id'].tolist()
+                    if to_delete:
+                        cursor = conn.cursor()
+                        for item_id in to_delete:
+                            cursor.execute("DELETE FROM transactions WHERE id=?", (item_id,))
+                        conn.commit()
+                        st.success("ลบเรียบร้อย!")
+                        st.rerun()
+            
+            # ปุ่มบันทึกการแก้ไข
+            with col_btn2:
+                if st.button("💾 บันทึกการแก้ไขทั้งหมด", use_container_width=True):
+                    save_df = edited_df.drop(columns=['ลบ?'])
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM transactions") 
+                    save_df.to_sql('transactions', conn, if_exists='append', index=False)
+                    conn.commit()
+                    st.success("บันทึกข้อมูลใหม่แล้ว!")
+                    st.rerun()
         else:
-            st.info("ยังไม่มีรายการจ้า")
+            st.info("ยังไม่มีรายการ")
 
     st.markdown("---")
     if st.button("🚪 ออกจากระบบ"):
