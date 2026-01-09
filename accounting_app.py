@@ -84,7 +84,8 @@ else:
             # ถ้าเลือก "ระบุเอง" ให้โชว์ช่องพิมพ์
             if cat_choice == "➕ ระบุเอง (พิมพ์ใหม่)...":
                 custom_cat = col2.text_input("✍️ พิมพ์ชื่อหมวดหมู่ที่ต้องการ", placeholder="เช่น ค่าวัคซีนแมว, ค่ากาแฟ")
-                category = custom_cat if custom_cat else "อื่นๆ" # ถ้าลืมพิมพ์ ให้ใส่เป็น "อื่นๆ"
+                # ถ้าลืมพิมพ์ จะให้เป็นค่าว่าง หรือ 'อื่นๆ'
+                category = custom_cat if custom_cat else "อื่นๆ"
             else:
                 category = cat_choice
             # -----------------------
