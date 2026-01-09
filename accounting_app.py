@@ -1,5 +1,5 @@
 import streamlit as st
-import pd as pd
+import pandas as pd  # แก้ไขจาก pd as pd เป็น pandas as pd เพื่อแก้ Error
 import sqlite3
 import plotly.express as px
 from datetime import datetime
@@ -15,9 +15,7 @@ st.markdown("""
         font-family: 'Kanit', sans-serif !important; color: #4A4A4A !important;
     }
     .main-title { color: #FFB7CE; text-align: center; font-size: 40px; font-weight: bold; padding: 10px; margin-bottom: 0; }
-    .meow-header-simple { 
-        text-align: center; margin-bottom: 25px; 
-    }
+    .meow-header-simple { text-align: center; margin-bottom: 25px; }
     .meow-face { font-size: 70px; margin: 0; padding: 0; }
     .meow-speech { font-size: 18px; color: #FF69B4; font-weight: 500; margin-top: -10px; }
     div[data-testid="stMetric"] { background: white !important; border-radius: 15px; border: 2px solid #FFE4E1 !important; padding: 10px; }
@@ -27,9 +25,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. DATABASE ENGINE (Safe Connection) ---
+# --- 2. DATABASE ENGINE ---
 def init_db():
-    conn = sqlite3.connect('meow_final_v45.db', check_same_thread=False)
+    conn = sqlite3.connect('meow_final_v46.db', check_same_thread=False)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS records 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, 
@@ -77,7 +75,7 @@ if total_in > 0 and (total_save / total_in >= 0.3):
 elif total_out > total_in:
     face, msg = "🙀", "ว้าย! ทาสใช้เงินเกินตัวแล้วนะ ติดลบแบบนี้เค้าตกใจเมี๊ยว!"
 else:
-    face, msg = "😺", "บริหารเงินได้ดีนะทาส ตั้งใจเก็บเงินต่อไปล่ะเมี๊ยวว"
+    face, msg = "😺", "วันนี้ก็ใช้ชีวิตได้ดีนะทาส ตั้งใจเก็บเงินต่อไปล่ะเมี๊ยวว"
 
 # --- 6. HEADER DESIGN (ชื่อแอป -> แมว (ไม่มีกรอบ)) ---
 st.markdown("<div class='main-title'>🐾 Meow Wallet 🐾</div>", unsafe_allow_html=True)
@@ -153,7 +151,7 @@ with tab4:
     g1, g2 = st.columns(2)
     with g1:
         gn = st.text_input("เป้าหมายคือ?")
-        ga = st.number_input("จำนวนเงิน (฿)", min_value=0.0)
+        ga = st.number_input("เป้าหมายยอดเงิน", min_value=0.0)
         if st.button("🚩 บันทึกเป้าหมาย"):
             conn.execute("INSERT OR REPLACE INTO goals (user_id, goal_name, goal_amount) VALUES (?,?,?)", (user_name, gn, ga))
             conn.commit(); st.rerun()
