@@ -4,7 +4,7 @@ import sqlite3
 import plotly.express as px
 from datetime import datetime
 
-# --- 1. ตั้งค่าหน้าเว็บ ---
+# --- 1. SETTINGS & STYLES ---
 st.set_page_config(page_title="Meow Wallet", layout="wide", page_icon="🐾")
 
 st.markdown("""
@@ -21,9 +21,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. ฐานข้อมูล ---
+# --- 2. DATABASE ENGINE ---
 def get_db():
-    conn = sqlite3.connect('meow_wallet_v19.db', check_same_thread=False)
+    conn = sqlite3.connect('meow_wallet_v21.db', check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -35,13 +35,13 @@ c.execute('''CREATE TABLE IF NOT EXISTS records
               income REAL DEFAULT 0, expense REAL DEFAULT 0, savings REAL DEFAULT 0)''')
 conn.commit()
 
-# --- 3. ระบบ Session ---
+# --- 3. SESSION MANAGEMENT ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user_name' not in st.session_state: st.session_state.user_name = ""
 
 if not st.session_state.logged_in:
     st.markdown("<div class='main-title'>🐾 Meow Wallet 🐾</div>", unsafe_allow_html=True)
-    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+    _, col_l2, _ = st.columns([1, 2, 1])
     with col_l2:
         st.markdown("<h1 style='text-align: center;'>🐱</h1>", unsafe_allow_html=True)
         name_in = st.text_input("ชื่อทาสแมว:", key="login_name")
@@ -52,11 +52,25 @@ if not st.session_state.logged_in:
                 st.rerun()
     st.stop()
 
-# --- 4. ดึงข้อมูล ---
+# --- 4. DATA LOADING ---
 user_name = st.session_state.user_name
 df = pd.read_sql(f"SELECT * FROM records WHERE user_id='{user_name}'", conn)
+total_in = df['income'].sum() if not df.empty else 0
+total_out = df['expense'].sum() if not df.empty else 0
+total_save = df['savings'].sum() if not df.empty else 0
 
-# --- 5. Tabs ---
+# --- 5. FUNCTION: CAT MOOD ---
+def get_cat_mood():
+    if total_in == 0: return "🐱 (รอกินปลาทูอยู่เมี๊ยวว)"
+    save_rate = total_save / total_in
+    if save_rate >= 0.3: return "😸 (ทาสเก็บเงินเก่งมาก! ยิ้มแก้มปริ)"
+    elif total_out > total_in: return "🙀 (ทาสใช้เงินเกินตัว! ตกใจล้าวว)"
+    else: return "😺 (วันนี้ทำดีแล้วเมี๊ยวว)"
+
+# --- 6. MAIN UI ---
+st.markdown(f"<div class='main-title'>🐾 Meow Wallet: {user_name} 🐾</div>", unsafe_allow_html=True)
+st.markdown(f"<h3 style='text-align: center;'>{get_cat_mood()}</h3>", unsafe_allow_html=True)
+
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "🎯 การออม", "📖 ประวัติและแก้ไข"])
 
 with tab1:
@@ -87,15 +101,17 @@ with tab1:
             st.rerun()
 
 with tab5:
-    st.markdown("### 📖 ประวัติและจัดการรายการ")
+    st.markdown("### 📖 ประวัติและแก้ไข")
     if not df.empty:
+        # ฟังก์ชัน Report (ข้อ 2)
+        csv = df.to_csv(index=False).encode('utf-8-sig')
+        st.download_button(label="📥 ดาวน์โหลดรายงานสรุป (CSV)", data=csv, file_name=f'meow_report_{user_name}.csv', mime='text/csv')
+        
+        st.divider()
         df_display = df.sort_values(by='id', ascending=False)
         st.dataframe(df_display.drop(columns=['user_id']), use_container_width=True)
         
-        st.markdown("---")
-        st.markdown("#### 🛠️ แก้ไขหรือลบรายการ")
         selected_id = st.selectbox("เลือก ID รายการที่ต้องการจัดการ:", df_display['id'].tolist())
-        
         if selected_id:
             row = df[df['id'] == selected_id].iloc[0]
             col_e1, col_e2 = st.columns(2)
@@ -107,32 +123,22 @@ with tab5:
                 
             c_btn1, c_btn2 = st.columns(2)
             if c_btn1.button("✅ ยืนยันการแก้ไข", use_container_width=True):
-                # ตรวจสอบประเภทข้อมูลดั้งเดิมเพื่ออัปเดตค่าให้ถูกช่อง
-                if row['income'] > 0:
-                    new_vals = (new_amt, 0, 0)
-                elif row['expense'] > 0:
-                    new_vals = (0, new_amt, 0)
-                else:
-                    new_vals = (0, 0, new_amt)
+                if row['income'] > 0: vals = (new_amt, 0, 0)
+                elif row['expense'] > 0: vals = (0, new_amt, 0)
+                else: vals = (0, 0, new_amt)
                 
                 c.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, sub_category=? WHERE id=?", 
-                          (new_date.strftime('%Y-%m-%d'), new_vals[0], new_vals[1], new_vals[2], new_sub, selected_id))
+                          (new_date.strftime('%Y-%m-%d'), vals[0], vals[1], vals[2], new_sub, selected_id))
                 conn.commit()
-                st.success("แก้ไขข้อมูลเรียบร้อย!")
+                st.success("แก้ไขแล้ว!")
                 st.rerun()
                 
             if c_btn2.button("🗑️ ลบรายการนี้", use_container_width=True):
                 c.execute("DELETE FROM records WHERE id=?", (selected_id,))
                 conn.commit()
-                st.warning("ลบรายการแล้ว!")
                 st.rerun()
     else:
-        st.info("ยังไม่มีข้อมูลเมี๊ยวว")
-
-# คำนวณยอดรวม
-total_in = df['income'].sum() if not df.empty else 0
-total_out = df['expense'].sum() if not df.empty else 0
-total_save = df['savings'].sum() if not df.empty else 0
+        st.info("ยังไม่มีข้อมูล")
 
 with tab2:
     st.markdown("### 🏦 ยอดคงเหลือ")
@@ -141,23 +147,19 @@ with tab2:
     for i, w in enumerate(wallets):
         w_df = df[df['wallet'] == w]
         bal = w_df['income'].sum() - w_df['expense'].sum() - w_df['savings'].sum() if not w_df.empty else 0.0
-        cols = [c_w1, c_w2, c_w3]
-        cols[i].metric(w, f"{bal:,.2f} ฿")
+        [c_w1, c_w2, c_w3][i].metric(w, f"{bal:,.2f} ฿")
 
 with tab3:
     st.markdown("### 📊 วิเคราะห์")
     if not df.empty and (total_out > 0 or total_save > 0):
         fig = px.pie(names=['รายจ่าย', 'เงินออม'], values=[total_out, total_save], hole=0.4, color_discrete_sequence=['#FF5252', '#FF69B4'])
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("บันทึกรายจ่ายหรือเงินออมเพื่อดูแผนภูมิ")
 
 with tab4:
     st.markdown("### 🎯 การออม")
     st.metric("เงินออมสะสม", f"{total_save:,.2f} ฿")
     if total_in > 0:
-        progress_val = min(total_save/total_in, 1.0)
-        st.progress(progress_val)
+        st.progress(min(total_save/total_in, 1.0))
         st.write(f"{(total_save/total_in)*100:.1f}% ของรายรับ")
 
 st.markdown("---")
