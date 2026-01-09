@@ -1,207 +1,116 @@
 import streamlit as st
-import sqlite3
 import pandas as pd
-from datetime import datetime
-import plotly.express as px
+import os
+import datetime
 
 # --- 1. ตั้งค่าหน้าเว็บ ---
-st.set_page_config(page_title="กระเป๋าเงินเหมียว", page_icon="🐾", layout="wide")
+st.set_page_config(page_title="กระเป๋าเงินเหมียว", page_icon="🐱")
 
-# --- 2. ฟังก์ชันแก้ปัญหา Rerun ---
-def safe_rerun():
-    try:
-        if hasattr(st, 'rerun'): st.rerun()
-        elif hasattr(st, 'experimental_rerun'): st.experimental_rerun()
-    except: pass
+# ชื่อไฟล์สำหรับบันทึกข้อมูล (บันทึกลงไฟล์ CSV ในโฟลเดอร์เดียวกัน)
+DATA_FILE = "transactions.csv"
 
-# --- 3. CSS (ธีมสีชมพู) ---
-st.markdown("""
-<style>
-    .stApp { background-color: #FFF0F5; }
-    .stButton>button { 
-        background-color: #DB7093; 
-        color: white; 
-        border-radius: 8px; 
-        height: 45px;
-        font-weight: bold;
-        border: none;
-        font-size: 16px;
-    }
-    .stButton>button:hover { background-color: #C71585; }
-    h1, h2, h3 { color: #800080; font-family: 'Sarabun', sans-serif; }
+# --- 2. ฟังก์ชันโหลดและบันทึกข้อมูล ---
+def load_data():
+    """โหลดข้อมูลจากไฟล์ CSV ถ้าไม่มีจะสร้างใหม่"""
+    if os.path.exists(DATA_FILE):
+        return pd.read_csv(DATA_FILE)
+    else:
+        # สร้างตารางเปล่าถ้ายังไม่มีไฟล์
+        return pd.DataFrame(columns=["วันที่", "หมวดหมู่", "ประเภท", "จำนวนเงิน", "หมายเหตุ"])
+
+def save_record(date, category, tx_type, amount, note):
+    """บันทึกข้อมูลใหม่ต่อท้ายข้อมูลเดิม"""
+    df = load_data()
+    new_data = pd.DataFrame([{
+        "วันที่": date,
+        "หมวดหมู่": category,
+        "ประเภท": tx_type,
+        "จำนวนเงิน": float(amount),
+        "หมายเหตุ": note
+    }])
+    # รวมข้อมูลเก่าและใหม่
+    df = pd.concat([df, new_data], ignore_index=True)
+    # บันทึกลงไฟล์
+    df.to_csv(DATA_FILE, index=False)
+
+# --- 3. ส่วนแสดงผลหลัก (User Interface) ---
+st.title("🐱 กระเป๋าเงินเหมียว")
+st.write("---")
+
+# สร้าง Tabs สำหรับเลือกเมนู
+tab1, tab2, tab3 = st.tabs(["📝 บันทึกรายการ", "📋 ดูรายการย้อนหลัง", "📊 สรุปยอด"])
+
+# === Tab 1: หน้าบันทึกข้อมูล ===
+with tab1:
+    st.header("เพิ่มรายการใหม่")
     
-    /* ปรับช่องกรอกข้อมูล */
-    .stTextInput>div>div>input, .stSelectbox>div>div>div {
-        background-color: #F0F2F6;
-        border-radius: 8px;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# --- 4. ฐานข้อมูล (V14) ---
-def init_db():
-    conn = sqlite3.connect('meow_wallet_v14.db', check_same_thread=False)
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT,
-            category TEXT,
-            source TEXT,
-            description TEXT,
-            type TEXT,
-            amount REAL
-        )
-    ''')
-    conn.commit()
-    return conn
-
-conn = init_db()
-
-# --- ฟังก์ชันดึงหมวดหมู่ ---
-def get_all_categories():
-    default_cats = ["ค่าอาหาร 🍲", "เดินทาง 🚗", "ช้อปปิ้ง 🛍️", "ของใช้ 🧻", "ค่าน้ำ/ไฟ 💡", "เงินเดือน 💰", "เงินออม 🐷"]
-    try:
-        df = pd.read_sql("SELECT DISTINCT category FROM transactions", conn)
-        if not df.empty:
-            db_cats = df['category'].dropna().unique().tolist()
-            all_cats = list(set(default_cats + db_cats))
-            all_cats.sort()
-            return all_cats
-    except: pass
-    return default_cats
-
-# --- 5. ระบบล็อกอิน ---
-if 'logged_in' not in st.session_state: st.session_state.logged_in = False
-if 'username' not in st.session_state: st.session_state.username = ""
-
-def login():
-    st.session_state.logged_in = True
-    st.session_state.username = st.session_state.login_name_input
-
-def logout():
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-
-# --- 6. ส่วนแสดงผล ---
-if not st.session_state.logged_in:
-    # === หน้า Login (แบบเดิมที่คุณชอบ) ===
-    st.write("")
-    st.write("")
-    st.markdown("<h1 style='text-align: center;'>🐾 กระเป๋าเงินเหมียว 🐾</h1>", unsafe_allow_html=True)
-    st.markdown("<div style='text-align: center; font-size: 80px;'>🐱</div>", unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 1.5, 1])
+    # 3.1 เลือกวันที่
+    col1, col2 = st.columns(2)
+    with col1:
+        tx_date = st.date_input("วันที่", value=datetime.date.today())
     with col2:
-        st.text_input("ชื่อทาสแมว:", key="login_name_input", placeholder="พิมพ์ชื่อตรงนี้เลย...")
-        st.write("")
-        st.button("เข้าสู่ระบบ 🐾", on_click=login, use_container_width=True)
+        tx_type = st.radio("ประเภทรายการ", ["รายจ่าย 💸", "รายรับ 💰", "เงินออม 🐷"], horizontal=True)
 
-else:
-    # === หน้าหลัก ===
-    st.markdown(f"<div style='text-align: right; color: #DB7093;'>👤 สวัสดี: <b>{st.session_state.username}</b></div>", unsafe_allow_html=True)
+    # 3.2 ส่วนเลือกหมวดหมู่ (ไฮไลท์: แก้ไขให้พิมพ์เองได้)
+    st.write("---")
+    st.write("📂 **หมวดหมู่**")
     
-    tab1, tab2, tab3, tab4 = st.tabs(["📝 บันทึก", "💰 กระเป๋าเงิน", "📊 กราฟ", "⚙️ แก้ไข"])
+    # ตัวเลือกวิธีกรอกข้อมูล
+    input_method = st.radio("เลือกวิธีการระบุหมวดหมู่:", ["เลือกจากรายการ", "พิมพ์เองระบุเอง"], horizontal=True)
+    
+    category = "" # ตัวแปรสำหรับเก็บค่าสุดท้าย
+    
+    if input_method == "เลือกจากรายการ":
+        # รายการมาตรฐาน
+        options = ["อาหาร", "เดินทาง", "ของใช้ส่วนตัว", "ค่าห้อง/คอนโด", "ค่าน้ำ/ไฟ/เน็ต", 
+                   "ช้อปปิ้ง", "รักษาพยาบาล", "เงินเดือน", "โบนัส", "อื่นๆ"]
+        category = st.selectbox("เลือกหมวดหมู่:", options)
+    else:
+        # ช่องพิมพ์เอง (สำหรับ ค่าเน็ต, ค่าซ่อมรถ, หรืออื่นๆ ตามใจชอบ)
+        category = st.text_input("พิมพ์ชื่อหมวดหมู่:", placeholder="เช่น ค่าอินเทอร์เน็ต, ค่าอาหารแมว")
 
-    # === TAB 1: บันทึก (เพิ่มปุ่มเลือกพิมพ์เองให้ชัดๆ) ===
-    with tab1:
-        st.header("✨ เพิ่มรายการใหม่")
+    # 3.3 จำนวนเงินและหมายเหตุ
+    amount = st.number_input("จำนวนเงิน (บาท):", min_value=0.0, format="%.2f")
+    note = st.text_input("หมายเหตุ (กันลืม):", placeholder="เช่น ซื้อที่เซเว่น")
+
+    # 3.4 ปุ่มบันทึก
+    if st.button("❤️ บันทึกรายการ", use_container_width=True):
+        if not category:
+            st.error("⚠️ กรุณาระบุหมวดหมู่ก่อนบันทึก")
+        elif amount <= 0:
+            st.warning("⚠️ จำนวนเงินต้องมากกว่า 0")
+        else:
+            save_record(tx_date, category, tx_type, amount, note)
+            st.success(f"✅ บันทึกรายการ: **{category}** จำนวน **{amount}** บาท เรียบร้อย!")
+            # สั่งให้หน้ารีเฟรชเพื่อเคลียร์ค่า (optional)
+            st.rerun()
+
+# === Tab 2: ดูรายการย้อนหลัง ===
+with tab2:
+    st.header("รายการทั้งหมด")
+    df = load_data()
+    if not df.empty:
+        # แสดงข้อมูลล่าสุดขึ้นก่อน
+        st.dataframe(df.sort_index(ascending=False), use_container_width=True)
         
-        with st.form("entry_form", clear_on_submit=True):
-            # แถว 1: วันที่ | หมวดหมู่
-            c1, c2 = st.columns(2)
-            with c1:
-                date_val = st.date_input("📅 วันที่", datetime.now())
-            with c2:
-                # ปุ่มเลือกวิธีระบุหมวด (อยู่เหนือช่องเลือกเลย)
-                cat_mode = st.radio("รูปแบบหมวดหมู่:", ["เลือกจากรายการ", "✏️ พิมพ์เอง"], horizontal=True)
-                
-                if cat_mode == "เลือกจากรายการ":
-                    all_cats = get_all_categories()
-                    category = st.selectbox("📂 เลือกหมวด:", all_cats)
-                else:
-                    # ช่องพิมพ์เอง (โผล่มาเมื่อกดเลือกพิมพ์เอง)
-                    category = st.text_input("✍️ พิมพ์ชื่อหมวดใหม่:", placeholder="เช่น ค่าวัคซีน, ค่ากาแฟ")
-                    if category == "": category = "อื่นๆ" # กันเหนียว
+        # ปุ่มลบข้อมูลทั้งหมด (เผื่ออยากเริ่มใหม่)
+        if st.button("ล้างข้อมูลทั้งหมด"):
+            if os.path.exists(DATA_FILE):
+                os.remove(DATA_FILE)
+                st.rerun()
+    else:
+        st.info("ยังไม่มีรายการบันทึก เริ่มจดรายการแรกที่แท็บ 'บันทึกรายการ' ได้เลย!")
 
-            # แถว 2: ช่องทาง | รายละเอียด
-            c3, c4 = st.columns(2)
-            with c3:
-                source = st.selectbox("👛 ช่องทาง", ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳", "TrueWallet"])
-            with c4:
-                description = st.text_input("📝 รายละเอียด", placeholder="เช่น ข้าวมันไก่")
-
-            # แถว 3: ประเภท | จำนวนเงิน
-            c5, c6 = st.columns(2)
-            with c5:
-                trans_type = st.radio("🏷️ ประเภท", ["รายจ่าย 💸", "รายรับ 💰", "เงินออม 🐷"], horizontal=True)
-            with c6:
-                amount = st.number_input("💵 จำนวนเงิน", min_value=0.0, format="%.2f")
-
-            st.write("")
-            
-            # ปุ่มบันทึก
-            submitted = st.form_submit_button("💖 บันทึกรายการ", use_container_width=True)
-
-            if submitted:
-                c = conn.cursor()
-                c.execute("INSERT INTO transactions (date, category, source, description, type, amount) VALUES (?, ?, ?, ?, ?, ?)",
-                          (date_val, category, source, description, trans_type, amount))
-                conn.commit()
-                st.success(f"บันทึกหมวด '{category}' เรียบร้อยแล้ว!")
-
-    # === TAB 2: กระเป๋าเงิน ===
-    with tab2:
-        st.header("🏛️ ยอดคงเหลือ")
-        df = pd.read_sql_query("SELECT * FROM transactions", conn)
+# === Tab 3: สรุปยอดง่ายๆ ===
+with tab3:
+    st.header("สรุปภาพรวม")
+    df = load_data()
+    if not df.empty:
+        # รวมยอดตามประเภท
+        summary = df.groupby("ประเภท")["จำนวนเงิน"].sum()
+        st.bar_chart(summary)
         
-        def get_bal(src):
-            if df.empty: return 0.0
-            d = df[df['source'] == src]
-            return d[d['type']=='รายรับ 💰']['amount'].sum() - d[d['type']=='รายจ่าย 💸']['amount'].sum() - d[d['type']=='เงินออม 🐷']['amount'].sum()
-
-        c1, c2, c3 = st.columns(3)
-        c1.metric("💵 เงินสด", f"{get_bal('เงินสด 💵'):,.2f} ฿")
-        c2.metric("🏦 ธนาคาร", f"{get_bal('เงินฝากธนาคาร 🏦'):,.2f} ฿")
-        c3.metric("💳 บัตรเครดิต", f"{get_bal('บัตรเครดิต 💳'):,.2f} ฿")
-
-    # === TAB 3: กราฟ ===
-    with tab3:
-        st.header("📊 สรุปผล")
-        df = pd.read_sql_query("SELECT * FROM transactions", conn)
-        if not df.empty:
-            exp = df[df['type'] == "รายจ่าย 💸"]
-            if not exp.empty:
-                fig = px.pie(exp, values='amount', names='category', hole=0.5, title="สัดส่วนรายจ่าย")
-                st.plotly_chart(fig, use_container_width=True)
-            else: st.info("ยังไม่มีรายจ่าย")
-        else: st.info("ไม่มีข้อมูล")
-
-    # === TAB 4: แก้ไข ===
-    with tab4:
-        st.header("⚙️ จัดการข้อมูล")
-        df = pd.read_sql_query("SELECT * FROM transactions ORDER BY id DESC", conn)
-        if not df.empty:
-            df['ลบ'] = False
-            edited_df = st.data_editor(df, column_config={"ลบ": st.column_config.CheckboxColumn(width="small")}, disabled=["id"], hide_index=True, use_container_width=True)
-            
-            col_del, col_save = st.columns(2)
-            if col_del.button("🗑️ ลบที่เลือก"):
-                ids = edited_df[edited_df['ลบ']]['id'].tolist()
-                for i in ids: conn.cursor().execute("DELETE FROM transactions WHERE id=?", (i,))
-                conn.commit()
-                safe_rerun()
-            
-            if col_save.button("💾 บันทึกการแก้ไข"):
-                save_df = edited_df.drop(columns=['ลบ'])
-                conn.cursor().execute("DELETE FROM transactions")
-                save_df.to_sql('transactions', conn, if_exists='append', index=False)
-                conn.commit()
-                safe_rerun()
-        else: st.info("ไม่มีข้อมูล")
-
-    # ปุ่มออกจากระบบ
-    st.markdown("---")
-    if st.button("🚪 ออกจากระบบ"):
-        logout()
-        safe_rerun()
+        st.write("ยอดรวมแยกตามประเภท:")
+        st.write(summary)
+    else:
+        st.info("บันทึกข้อมูลก่อนนะ แล้วกราฟจะขึ้นตรงนี้")
