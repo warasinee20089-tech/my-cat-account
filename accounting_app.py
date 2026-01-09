@@ -27,10 +27,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. ฐานข้อมูล (เปลี่ยนชื่อไฟล์ใหม่ v2 เพื่อหนีปัญหาเก่า) ---
+# --- 3. ฐานข้อมูล (เปลี่ยนชื่อไฟล์ใหม่ v3 เพื่อหนีปัญหาเก่า) ---
 def init_db():
-    # เปลี่ยนชื่อไฟล์เป็น meow_wallet_v2.db เพื่อเริ่มสมุดใหม่ที่ช่องครบ
-    conn = sqlite3.connect('meow_wallet_v2.db', check_same_thread=False)
+    # เปลี่ยนชื่อไฟล์เป็น meow_wallet_v3.db เพื่อเริ่มสมุดใหม่ที่ช่องครบ
+    conn = sqlite3.connect('meow_wallet_v3.db', check_same_thread=False)
     c = conn.cursor()
     c.execute('''
         CREATE TABLE IF NOT EXISTS transactions (
@@ -159,11 +159,76 @@ else:
         else:
             st.info("ยังไม่มีข้อมูล")
 
-    # ---------------- TAB 4: การออม ----------------
+    # ---------------- TAB 4: การออม (จุดที่เคย Error วงเล็บ) ----------------
     with tab4:
         st.header("🎯 เงินออม")
         df = pd.read_sql_query("SELECT * FROM transactions", conn)
         
         if not df.empty and 'type' in df.columns:
             savings = df[df['type'] == "เงินออม 🐷"]['amount'].sum()
-            st.metric("ยอดเงินออมสะสม",
+            # บรรทัดนี้ที่เคย Error แก้ให้แล้วครับ
+            st.metric("ยอดเงินออมสะสม", f"{savings:,.2f} ฿")
+            st.progress(min(savings/10000, 1.0))
+        else:
+            st.metric("ยอดเงินออมสะสม", "0.00 ฿")
+
+    # ---------------- TAB 5: แก้ไข (ตารางแบบแก้ได้เลย) ----------------
+    with tab5:
+        st.header("📖 จัดการข้อมูล (แก้ได้ทุกช่อง)")
+        df = pd.read_sql_query("SELECT * FROM transactions ORDER BY id DESC", conn)
+        
+        if not df.empty:
+            df['date'] = pd.to_datetime(df['date'])
+            df['ลบ?'] = False 
+            
+            st.info("💡 วิธีใช้: แก้ไขในตารางได้เลย แล้วกดบันทึกด้านล่าง / จะลบให้ติ๊กช่อง 'ลบ?'")
+
+            edited_df = st.data_editor(
+                df, 
+                column_config={
+                    "ลบ?": st.column_config.CheckboxColumn("ลบ?", width="small"),
+                    "date": st.column_config.DateColumn("วันที่", format="YYYY-MM-DD"),
+                    "category": st.column_config.TextColumn("หมวดหมู่"),
+                    "source": st.column_config.SelectboxColumn("ช่องทาง", options=["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"]),
+                    "type": st.column_config.SelectboxColumn("ประเภท", options=["รายจ่าย 💸", "รายรับ 💰", "เงินออม 🐷"]),
+                    "amount": st.column_config.NumberColumn("จำนวนเงิน", format="%.2f"),
+                },
+                disabled=["id"],
+                hide_index=True,
+                use_container_width=True,
+                num_rows="dynamic",
+                key="editor"
+            )
+
+            col_btn1, col_btn2 = st.columns(2)
+            
+            with col_btn1:
+                if st.button("🗑️ ลบรายการที่ติ๊ก ✅", type="primary", use_container_width=True):
+                    to_delete = edited_df[edited_df['ลบ?'] == True]['id'].tolist()
+                    if to_delete:
+                        cursor = conn.cursor()
+                        for item_id in to_delete:
+                            cursor.execute("DELETE FROM transactions WHERE id=?", (item_id,))
+                        conn.commit()
+                        st.success("ลบเรียบร้อย!")
+                        safe_rerun()
+            
+            with col_btn2:
+                if st.button("💾 บันทึกการแก้ไขทั้งหมด", use_container_width=True):
+                    # แปลงวันที่กลับเป็น Text
+                    save_df = edited_df.drop(columns=['ลบ?'])
+                    save_df['date'] = save_df['date'].apply(lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else x)
+                    
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM transactions")
+                    save_df.to_sql('transactions', conn, if_exists='append', index=False)
+                    conn.commit()
+                    st.success("บันทึกข้อมูลใหม่แล้ว!")
+                    safe_rerun()
+        else:
+            st.info("ยังไม่มีข้อมูลให้แก้ไข")
+
+    st.markdown("---")
+    if st.button("🚪 ออกจากระบบ"):
+        logout()
+        safe_rerun()
