@@ -124,7 +124,8 @@ with tab2:
     for i, w in enumerate(wallets_list):
         w_df = df[df['wallet'] == w] if not df.empty else pd.DataFrame()
         bal = w_df['income'].sum() - w_df['expense'].sum() - w_df['savings'].sum() if not w_df.empty else 0.0
-        [c_w1, c_w2, c_w3][i].metric(w, f"{bal:,.2f} ฿")
+        cols = [c_w1, c_w2, c_w3]
+        cols[i].metric(w, f"{bal:,.2f} ฿")
 
 with tab3:
     st.markdown("### 📊 วิเคราะห์ข้อมูล")
@@ -137,33 +138,41 @@ with tab3:
         st.write(f"การใช้จ่ายเดือนนี้: {current_month_exp:,.2f} / {monthly_limit:,.2f} ฿")
         st.markdown(f"<div style='width:100%; background:#f3f4f6; border-radius:15px; margin-bottom: 25px;'><div style='width:{usage_pct*100}%; background:{color}; height:20px; border-radius:15px; transition: 0.5s;'></div></div>", unsafe_allow_html=True)
         
-        if usage_pct >= 0.9: st.error("🙀 ทาสหยุดช้อปได้แล้ว! อาหารแมวจะหมดแล้วนะ!")
-        
-        # กราฟแท่งเปรียบเทียบรายเดือน (ภาษาไทยแบบสมบูรณ์)
+        # กราฟแท่งเปรียบเทียบรายเดือน
         st.markdown("---")
         st.markdown("#### 📈 เปรียบเทียบรายรับและรายจ่ายรายเดือน")
-        
-        # แปลงชื่อ Column ให้เป็นภาษาไทยเพื่อแสดงในกราฟ
         monthly_df = df.groupby('เดือน')[['income', 'expense']].sum().reset_index()
         monthly_df = monthly_df.rename(columns={'income': 'รายรับ', 'expense': 'รายจ่าย'})
-        
         fig_bar = px.bar(monthly_df, x='เดือน', y=['รายรับ', 'รายจ่าย'], 
                          labels={'value': 'จำนวนเงิน (บาท)', 'variable': 'ประเภทรายการ'},
-                         barmode='group',
-                         color_discrete_map={'รายรับ': '#FFB7CE', 'รายจ่าย': '#94E1E1'})
+                         barmode='group', color_discrete_map={'รายรับ': '#FFB7CE', 'รายจ่าย': '#94E1E1'})
         fig_bar.update_layout(font_family="Kanit", plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig_bar, use_container_width=True)
 
-        # แผนภูมิวงกลม (ภาษาไทย)
+        # แผนภูมิวงกลมคู่ (สัดส่วนหลัก vs หมวดหมู่รายจ่าย)
         st.markdown("---")
-        st.markdown("#### 🍰 สัดส่วนการใช้จ่ายและเงินออม")
-        fig_pie = px.pie(names=['รายจ่าย 💸', 'เงินออม 🐷'], 
-                         values=[total_out, total_save], 
-                         hole=0.5,
-                         color_discrete_sequence=['#FF9AA2', '#B2E2F2'])
-        fig_pie.update_traces(textinfo='percent+label')
-        fig_pie.update_layout(font_family="Kanit")
-        st.plotly_chart(fig_pie, use_container_width=True)
+        col_pie1, col_pie2 = st.columns(2)
+        
+        with col_pie1:
+            st.markdown("#### 🍰 สัดส่วนการใช้จ่ายและเงินออม")
+            fig_pie1 = px.pie(names=['รายจ่าย 💸', 'เงินออม 🐷'], values=[total_out, total_save], 
+                             hole=0.5, color_discrete_sequence=['#FF9AA2', '#B2E2F2'])
+            fig_pie1.update_traces(textinfo='percent+label')
+            fig_pie1.update_layout(font_family="Kanit", showlegend=False)
+            st.plotly_chart(fig_pie1, use_container_width=True)
+
+        with col_pie2:
+            st.markdown("#### 🍱 รายจ่ายแยกตามหมวดหมู่")
+            exp_df = df[df['expense'] > 0]
+            if not exp_df.empty:
+                cat_exp = exp_df.groupby('category')['expense'].sum().reset_index()
+                fig_pie2 = px.pie(cat_exp, names='category', values='expense', 
+                                 hole=0.5, color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig_pie2.update_traces(textinfo='percent+label')
+                fig_pie2.update_layout(font_family="Kanit", showlegend=False)
+                st.plotly_chart(fig_pie2, use_container_width=True)
+            else:
+                st.info("ยังไม่มีข้อมูลรายจ่ายเมี๊ยวว")
     else:
         st.info("ยังไม่มีข้อมูลให้วิเคราะห์เมี๊ยวว")
 
@@ -188,20 +197,18 @@ with tab5:
         selected_id = st.selectbox("เลือก ID รายการที่ต้องการจัดการ:", df_display['id'].tolist())
         if selected_id:
             row = df[df['id'] == selected_id].iloc[0]
-            current_type = "รายรับ 💰" if row['income'] > 0 else "รายจ่าย 💸" if row['expense'] > 0 else "เงินออม 🐷"
-            st.info(f"จัดการรายการ: {current_type}")
             col_e1, col_e2 = st.columns(2)
             with col_e1:
                 new_date = st.date_input("แก้ไขวันที่", row['date'].to_pydatetime())
-                current_amt = float(row['income'] if row['income'] > 0 else row['expense'] if row['expense'] > 0 else row['savings'])
-                new_amt = st.number_input("แก้ไขจำนวนเงิน", value=current_amt)
+                curr_amt = float(row['income'] if row['income'] > 0 else row['expense'] if row['expense'] > 0 else row['savings'])
+                new_amt = st.number_input("แก้ไขจำนวนเงิน", value=curr_amt)
             with col_e2:
                 new_sub = st.text_input("แก้ไขรายละเอียด", value=row['sub_category'])
                 new_wallet = st.selectbox("แก้ไขช่องทาง", ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"], index=["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"].index(row['wallet']))
-                
+            
             c_btn1, c_btn2 = st.columns(2)
             if c_btn1.button("✅ ยืนยันการแก้ไข", use_container_width=True):
-                n_inc, n_exp, n_sav = (new_amt, 0, 0) if row['income'] > 0 else (0, new_amt, 0) if row['expense'] > 0 else (0, 0, new_amt)
+                n_inc, n_exp, n_sav = (new_amt,0,0) if row['income']>0 else (0,new_amt,0) if row['expense']>0 else (0,0,new_amt)
                 c.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, sub_category=?, wallet=? WHERE id=?", 
                           (new_date.strftime('%Y-%m-%d'), n_inc, n_exp, n_sav, new_sub, new_wallet, selected_id))
                 conn.commit()
