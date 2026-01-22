@@ -19,16 +19,15 @@ st.markdown("""
     
     .main-title { color: #FF69B4; text-align: center; font-size: 50px; font-weight: bold; padding: 10px; margin-top: 20px; }
     
+    /* ปรับแต่งปุ่มให้ดูสวยงาม */
     .stButton>button { 
         border-radius: 20px; background-color: white; color: #FF69B4; 
         border: 2px solid #FFB7CE; font-weight: bold; width: 100%; height: 45px;
     }
     .stButton>button:hover { background-color: #FFB7CE; color: white; border: 2px solid #FFB7CE; }
     
-    /* ซ่อนส่วนที่อาจเหลือจาก container เดิม */
-    [data-testid="stVerticalBlock"] > div:has(div > img) {
-        background-color: transparent !important;
-    }
+    /* ลบ padding ส่วนเกินเพื่อให้ดูสะอาด */
+    .block-container { padding-top: 2rem; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -46,16 +45,22 @@ def init_db():
 
 conn = init_db()
 
-# --- 3. LOGIN SYSTEM ---
+# --- 3. LOGIN SYSTEM (แก้ไขให้ขยับมาตรงกลางแล้วครับ) ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user_name' not in st.session_state: st.session_state.user_name = ""
 
 if not st.session_state.logged_in:
+    # ส่วนหัวหน้า Login
     st.markdown("<div class='main-title'>🐾 Meow Wallet 🐾</div>", unsafe_allow_html=True)
-    _, col_login, _ = st.columns([1, 1, 1])
+    
+    # ใช้ columns เพื่อขยับเนื้อหามาไว้ตรงกลาง [ซ้าย, กลาง, ขวา]
+    _, col_login, _ = st.columns([1.2, 1, 1.2]) 
+    
     with col_login:
-        st.markdown("<h1 style='text-align: center; font-size: 80px;'>🐱</h1>", unsafe_allow_html=True)
-        name_in = st.text_input("ชื่อทาสแมว:", placeholder="Warasinee", label_visibility="visible")
+        st.markdown("<h1 style='text-align: center; font-size: 80px; margin-bottom: 0;'>🐱</h1>", unsafe_allow_html=True)
+        name_in = st.text_input("ชื่อทาสแมว:", placeholder="ระบุชื่อของคุณที่นี่...", label_visibility="visible")
+        
+        # จัดปุ่มให้อยู่กึ่งกลางในคอลัมน์ตัวเอง
         if st.button("เข้าสู่ระบบ 🐾"):
             if name_in.strip():
                 st.session_state.user_name = name_in.strip()
@@ -72,7 +77,7 @@ if not raw_df.empty:
 else:
     df = pd.DataFrame()
 
-# --- 5. HEADER (แก้ไขจุดที่ทำให้ Error แล้ว) ---
+# --- 5. HEADER (แก้ไข Syntax Error บรรทัด 76 เรียบร้อย) ---
 st.markdown(f"<div class='main-title'>🐾 Meow Wallet: {user_name} 🐾</div>", unsafe_allow_html=True)
 
 # --- 6. NAVIGATION TABS ---
@@ -123,26 +128,18 @@ with tab3:
         df_sorted['เดือน/ปี'] = df_sorted['date'].dt.strftime('%m/%Y')
         m_stats = df_sorted.groupby('เดือน/ปี')[['income', 'expense']].sum().reset_index().rename(columns={'income':'รายรับ','expense':'รายจ่าย'})
         
-        # ตั้งค่ากราฟ: เริ่ม 0, ห่าง 1000, ภาษาไทย
+        # กราฟแกน Y ห่าง 1,000 เริ่มที่ 0
         fig_bar = px.bar(m_stats, x='เดือน/ปี', y=['รายรับ', 'รายจ่าย'], 
                          barmode='group', 
                          color_discrete_map={'รายรับ':'#FFB7CE','รายจ่าย':'#B2E2F2'},
                          labels={'value': 'ยอดเงิน (บาท)', 'variable': 'ประเภท'})
         
         fig_bar.update_layout(
-            yaxis=dict(
-                tick0=0,
-                dtick=1000,
-                gridcolor='rgba(200, 200, 200, 0.3)'
-            ),
+            yaxis=dict(tick0=0, dtick=1000, gridcolor='rgba(200, 200, 200, 0.3)'),
             bargap=0.15,
             margin=dict(t=20, b=20, l=20, r=20)
         )
         st.plotly_chart(fig_bar, use_container_width=True)
-        
-        c1, c2 = st.columns(2)
-        with c1: st.plotly_chart(px.pie(df[df['income']>0], values='income', names='category', title="💰 รายรับแยกหมวดหมู่"), use_container_width=True)
-        with c2: st.plotly_chart(px.pie(df[df['expense']>0], values='expense', names='category', title="🍱 รายจ่ายแยกหมวดหมู่"), use_container_width=True)
     else: st.info("ยังไม่มีข้อมูลสำหรับวิเคราะห์เมี๊ยว")
 
 with tab4:
@@ -166,14 +163,10 @@ with tab4:
             conn.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, category=?, sub_category=? WHERE id=?", 
                          (ed.strftime('%Y-%m-%d'), ni, ne, ns, ec, es, sid))
             conn.commit(); st.rerun()
-        
-        if st.button("🗑️ ลบรายการนี้"):
-            conn.execute("DELETE FROM records WHERE id=?", (sid,))
-            conn.commit(); st.rerun()
 
-# --- 7. FOOTER (ปุ่มออกจากระบบอยู่กึ่งกลาง) ---
+# --- 7. FOOTER (ปุ่มออกจากระบบขยับมาตรงกลาง) ---
 st.markdown("---")
-_, mid_col, _ = st.columns([1, 0.6, 1])
+_, mid_col, _ = st.columns([1.5, 1, 1.5]) 
 with mid_col:
     if st.button("🚪 ออกจากระบบ"): 
         st.session_state.logged_in = False
