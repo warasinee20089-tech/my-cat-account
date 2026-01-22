@@ -19,15 +19,20 @@ st.markdown("""
     
     .main-title { color: #FF69B4; text-align: center; font-size: 50px; font-weight: bold; padding: 10px; margin-top: 20px; }
     
-    /* ปรับแต่งปุ่มให้ดูสวยงาม */
     .stButton>button { 
         border-radius: 20px; background-color: white; color: #FF69B4; 
         border: 2px solid #FFB7CE; font-weight: bold; width: 100%; height: 45px;
     }
     .stButton>button:hover { background-color: #FFB7CE; color: white; border: 2px solid #FFB7CE; }
     
-    /* ลบ padding ส่วนเกินเพื่อให้ดูสะอาด */
-    .block-container { padding-top: 2rem; }
+    /* จัดการกรอบข้อความหน้า Login */
+    .login-box {
+        background-color: white;
+        padding: 30px;
+        border-radius: 20px;
+        border: 2px solid #FFD1DC;
+        text-align: center;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -45,27 +50,26 @@ def init_db():
 
 conn = init_db()
 
-# --- 3. LOGIN SYSTEM (แก้ไขให้ขยับมาตรงกลางแล้วครับ) ---
+# --- 3. LOGIN SYSTEM (จัดให้อยู่ตรงกลางเป๊ะๆ) ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user_name' not in st.session_state: st.session_state.user_name = ""
 
 if not st.session_state.logged_in:
-    # ส่วนหัวหน้า Login
     st.markdown("<div class='main-title'>🐾 Meow Wallet 🐾</div>", unsafe_allow_html=True)
     
-    # ใช้ columns เพื่อขยับเนื้อหามาไว้ตรงกลาง [ซ้าย, กลาง, ขวา]
-    _, col_login, _ = st.columns([1.2, 1, 1.2]) 
+    # ใช้ Columns บีบให้เนื้อหาอยู่ตรงกลาง
+    empty_l, center_col, empty_r = st.columns([1, 1.2, 1])
     
-    with col_login:
-        st.markdown("<h1 style='text-align: center; font-size: 80px; margin-bottom: 0;'>🐱</h1>", unsafe_allow_html=True)
+    with center_col:
+        st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+        st.markdown("<h1 style='font-size: 80px; margin: 0;'>🐱</h1>", unsafe_allow_html=True)
         name_in = st.text_input("ชื่อทาสแมว:", placeholder="ระบุชื่อของคุณที่นี่...", label_visibility="visible")
-        
-        # จัดปุ่มให้อยู่กึ่งกลางในคอลัมน์ตัวเอง
         if st.button("เข้าสู่ระบบ 🐾"):
             if name_in.strip():
                 st.session_state.user_name = name_in.strip()
                 st.session_state.logged_in = True
                 st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
 # --- 4. DATA LOADING ---
@@ -77,10 +81,10 @@ if not raw_df.empty:
 else:
     df = pd.DataFrame()
 
-# --- 5. HEADER (แก้ไข Syntax Error บรรทัด 76 เรียบร้อย) ---
+# --- 5. HEADER (กลับมามีอุ้งเท้าแมวขนาบข้าง) ---
 st.markdown(f"<div class='main-title'>🐾 Meow Wallet: {user_name} 🐾</div>", unsafe_allow_html=True)
 
-# --- 6. NAVIGATION TABS ---
+# --- 6. NAVIGATION TABS (ตัดเรื่องการออมออกตามสั่ง) ---
 tab1, tab2, tab3, tab4 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "📖 ประวัติและแก้ไข"])
 
 with tab1:
@@ -90,7 +94,6 @@ with tab1:
         d_in = st.date_input("📅 วันที่", datetime.now())
         w_in = st.selectbox("👛 ช่องทาง", ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"])
         t_in = st.radio("🏷️ ประเภท", ["รายจ่าย 💸", "รายรับ 💰", "เงินออม 🐷"], horizontal=True)
-        up_file = st.file_uploader("📸 แนบใบเสร็จ", type=['jpg', 'jpeg', 'png'])
     with cb:
         c_map = {
             "รายรับ 💰": ["เงินเดือน 💸", "โบนัส 🎁", "ขายของ 🛍️", "ระบุเอง ✍️"],
@@ -104,17 +107,15 @@ with tab1:
     
     if st.button("💖 บันทึกรายการ"):
         if s_amt > 0 and f_cat:
-            img = up_file.getvalue() if up_file else None
             inc, exp, sav = (s_amt,0,0) if t_in=="รายรับ 💰" else (0,s_amt,0) if t_in=="รายจ่าย 💸" else (0,0,s_amt)
-            conn.execute("INSERT INTO records (user_id, date, wallet, category, sub_category, income, expense, savings, receipt_img) VALUES (?,?,?,?,?,?,?,?,?)", 
-                         (user_name, d_in.strftime('%Y-%m-%d'), w_in, f_cat, s_det, inc, exp, sav, img))
+            conn.execute("INSERT INTO records (user_id, date, wallet, category, sub_category, income, expense, savings) VALUES (?,?,?,?,?,?,?,?)", 
+                         (user_name, d_in.strftime('%Y-%m-%d'), w_in, f_cat, s_det, inc, exp, sav))
             conn.commit(); st.rerun()
 
 with tab2:
     st.markdown("### 🏦 ยอดเงินคงเหลือ")
     w_cols = st.columns(3)
-    wallets_list = ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"]
-    for i, w_name in enumerate(wallets_list):
+    for i, w_name in enumerate(["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"]):
         bal = 0.0
         if not df.empty:
             w_df = df[df['wallet'] == w_name]
@@ -128,46 +129,59 @@ with tab3:
         df_sorted['เดือน/ปี'] = df_sorted['date'].dt.strftime('%m/%Y')
         m_stats = df_sorted.groupby('เดือน/ปี')[['income', 'expense']].sum().reset_index().rename(columns={'income':'รายรับ','expense':'รายจ่าย'})
         
-        # กราฟแกน Y ห่าง 1,000 เริ่มที่ 0
+        # กราฟแท่ง (แกน Y ห่าง 1000 ภาษาไทย)
         fig_bar = px.bar(m_stats, x='เดือน/ปี', y=['รายรับ', 'รายจ่าย'], 
-                         barmode='group', 
-                         color_discrete_map={'รายรับ':'#FFB7CE','รายจ่าย':'#B2E2F2'},
+                         barmode='group', color_discrete_map={'รายรับ':'#FFB7CE','รายจ่าย':'#B2E2F2'},
                          labels={'value': 'ยอดเงิน (บาท)', 'variable': 'ประเภท'})
-        
-        fig_bar.update_layout(
-            yaxis=dict(tick0=0, dtick=1000, gridcolor='rgba(200, 200, 200, 0.3)'),
-            bargap=0.15,
-            margin=dict(t=20, b=20, l=20, r=20)
-        )
+        fig_bar.update_layout(yaxis=dict(tick0=0, dtick=1000, gridcolor='rgba(200, 200, 200, 0.3)'), bargap=0.15)
         st.plotly_chart(fig_bar, use_container_width=True)
+        
+        # --- กราฟวงกลมที่หายไป กลับมาแล้วครับ ---
+        c1, c2 = st.columns(2)
+        with c1:
+            in_df = df[df['income'] > 0]
+            if not in_df.empty:
+                st.plotly_chart(px.pie(in_df, values='income', names='category', title="💰 รายรับแยกหมวดหมู่", hole=0.3), use_container_width=True)
+        with c2:
+            ex_df = df[df['expense'] > 0]
+            if not ex_df.empty:
+                st.plotly_chart(px.pie(ex_df, values='expense', names='category', title="🍱 รายจ่ายแยกหมวดหมู่", hole=0.3), use_container_width=True)
     else: st.info("ยังไม่มีข้อมูลสำหรับวิเคราะห์เมี๊ยว")
 
 with tab4:
     st.markdown("### 📖 ประวัติและแก้ไข")
     if not df.empty:
         df_sh = df.sort_values(by='id', ascending=False)
-        st.dataframe(df_sh.drop(columns=['user_id', 'receipt_img']), use_container_width=True)
-        sid = st.selectbox("เลือก ID รายการ:", df_sh['id'].tolist())
+        st.dataframe(df_sh.drop(columns=['user_id']), use_container_width=True)
+        
+        sid = st.selectbox("เลือก ID รายการเพื่อแก้ไข/ลบ:", df_sh['id'].tolist())
         row = df[df['id'] == sid].iloc[0]
         
         ce1, ce2 = st.columns(2)
         with ce1:
-            ed = st.date_input("แก้ไขวัน", row['date'])
-            ev = st.number_input("แก้ไขยอดเงิน", value=float(max(row['income'], row['expense'], row['savings'])))
+            ed = st.date_input("แก้ไขวันที่", row['date'])
+            ev = st.number_input("แก้ไขจำนวนเงิน", value=float(max(row['income'], row['expense'], row['savings'])))
         with ce2:
             ec = st.text_input("แก้ไขหมวดหมู่", value=row['category'])
             es = st.text_input("แก้ไขรายละเอียด", value=row['sub_category'])
 
-        if st.button("✅ ยืนยันแก้ไข"):
-            ni, ne, ns = (ev,0,0) if row['income']>0 else (0,ev,0) if row['expense']>0 else (0,0,ev)
-            conn.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, category=?, sub_category=? WHERE id=?", 
-                         (ed.strftime('%Y-%m-%d'), ni, ne, ns, ec, es, sid))
-            conn.commit(); st.rerun()
+        # ปุ่มแก้ไขและลบ กลับมาทำงานปกติครับ
+        b_edit, b_del = st.columns(2)
+        with b_edit:
+            if st.button("✅ ยืนยันแก้ไข"):
+                ni, ne, ns = (ev,0,0) if row['income']>0 else (0,ev,0) if row['expense']>0 else (0,0,ev)
+                conn.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, category=?, sub_category=? WHERE id=?", 
+                             (ed.strftime('%Y-%m-%d'), ni, ne, ns, ec, es, sid))
+                conn.commit(); st.rerun()
+        with b_del:
+            if st.button("🗑️ ลบรายการนี้"):
+                conn.execute("DELETE FROM records WHERE id=?", (sid,))
+                conn.commit(); st.rerun()
 
-# --- 7. FOOTER (ปุ่มออกจากระบบขยับมาตรงกลาง) ---
+# --- 7. FOOTER (ปุ่มออกจากระบบตรงกลาง) ---
 st.markdown("---")
-_, mid_col, _ = st.columns([1.5, 1, 1.5]) 
-with mid_col:
+_, foot_col, _ = st.columns([1.5, 0.6, 1.5])
+with foot_col:
     if st.button("🚪 ออกจากระบบ"): 
         st.session_state.logged_in = False
         st.rerun()
