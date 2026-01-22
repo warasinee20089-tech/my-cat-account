@@ -5,7 +5,6 @@ import plotly.express as px
 from datetime import datetime
 import io
 from PIL import Image
-import base64
 
 # --- 1. ตั้งค่าหน้าเว็บ ---
 st.set_page_config(page_title="Meow Wallet Ultimate", layout="wide", page_icon="🐾")
@@ -21,9 +20,6 @@ st.markdown("""
     .main-title { color: #FF69B4; text-align: center; font-size: 40px; font-weight: bold; padding: 15px; }
     div[data-testid="stMetric"] { background: white !important; border-radius: 15px; border: 2px solid #FFD1DC !important; padding: 15px; }
     .stButton>button { border-radius: 10px; }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th { background-color: #FFD1DC !important; color: #2D2D2D !important; padding: 10px; text-align: left; }
-    td { padding: 8px; border-bottom: 1px solid #FFD1DC; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -41,15 +37,6 @@ def init_db():
         conn.commit()
 
 init_db()
-
-def get_image_thumbnail(img_bytes):
-    if img_bytes is None:
-        return "ไม่มีใบเสร็จ"
-    try:
-        encoded = base64.b64encode(img_bytes).decode()
-        return f'<img src="data:image/png;base64,{encoded}" width="50" style="border-radius:5px;">'
-    except:
-        return "ไฟล์เสีย"
 
 # --- 3. ระบบ Session ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
@@ -80,6 +67,7 @@ if not df.empty:
 # --- 5. Tabs ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "🎯 การออม", "📖 ประวัติและแก้ไข"])
 
+# --- TAB 1: บันทึก ---
 with tab1:
     st.markdown("### ✨ เพิ่มรายการใหม่")
     col1, col2 = st.columns(2)
@@ -104,6 +92,7 @@ with tab1:
         if amt > 0 and final_cat:
             img_byte = receipt_file.getvalue() if receipt_file else None
             inc, exp, sav = (amt,0,0) if type_in=="รายรับ 💰" else (0,amt,0) if type_in=="รายจ่าย 💸" else (0,0,amt)
+            
             with sqlite3.connect(DB_NAME) as conn:
                 c = conn.cursor()
                 c.execute("INSERT INTO records (user_id, date, wallet, category, sub_category, income, expense, savings, receipt_img) VALUES (?,?,?,?,?,?,?,?,?)", 
@@ -112,6 +101,7 @@ with tab1:
             st.success("บันทึกสำเร็จเมี๊ยววว!")
             st.rerun()
 
+# --- TAB 2: กระเป๋า ---
 with tab2:
     st.markdown("### 🏦 ยอดคงเหลือ")
     c_w1, c_w2, c_w3 = st.columns(3)
@@ -122,65 +112,92 @@ with tab2:
         cols = [c_w1, c_w2, c_w3]
         cols[i].metric(w, f"{bal:,.2f} ฿")
 
+# --- TAB 3: วิเคราะห์ (แยกส่วนและแก้ไขแผนภูมิ) ---
 with tab3:
     st.markdown("### 📊 วิเคราะห์การเงินรายเดือน")
     if not df.empty:
+        # 1. กราฟแท่งเปรียบเทียบ รายรับ - รายจ่าย
         monthly_stats = df.groupby('เดือน')[['income', 'expense']].sum().reset_index()
         monthly_stats = monthly_stats.rename(columns={'income': 'รายรับ', 'expense': 'รายจ่าย'})
         fig_bar = px.bar(monthly_stats, x='เดือน', y=['รายรับ', 'รายจ่าย'], 
                          barmode='group', title="📈 แนวโน้มรายรับ - รายจ่าย",
                          color_discrete_sequence=['#B2E2F2', '#FF9AA2'])
         st.plotly_chart(fig_bar, use_container_width=True)
+
+        st.markdown("---")
+        
+        # 2. แผนภูมิวงกลมแยกหมวดหมู่
+        col_a, col_b = st.columns(2)
+        with col_a:
+            inc_data = df[df['income'] > 0].groupby('category')['income'].sum().reset_index()
+            if not inc_data.empty:
+                st.markdown("#### 💰 รายรับแยกตามหมวดหมู่")
+                fig_inc = px.pie(inc_data, names='category', values='income', 
+                                 hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                st.plotly_chart(fig_inc, use_container_width=True)
+            else:
+                st.info("ยังไม่มีข้อมูลรายรับ")
+
+        with col_b:
+            exp_data = df[df['expense'] > 0].groupby('category')['expense'].sum().reset_index()
+            if not exp_data.empty:
+                st.markdown("#### 💸 รายจ่ายแยกตามหมวดหมู่")
+                fig_exp = px.pie(exp_data, names='category', values='expense', 
+                                 hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel2)
+                st.plotly_chart(fig_exp, use_container_width=True)
+            else:
+                st.info("ยังไม่มีข้อมูลรายจ่าย")
     else:
         st.info("บันทึกข้อมูลก่อนเพื่อดูการวิเคราะห์เมี๊ยวว")
 
+# --- TAB 4: การออม (แยกออกมาเป็นสัดส่วน) ---
 with tab4:
     st.markdown("### 🎯 การติดตามการออม")
     if not df.empty:
         total_save = df['savings'].sum()
         total_in = df['income'].sum()
+        
         c1, c2 = st.columns(2)
         c1.metric("💰 เงินออมสะสมทั้งหมด", f"{total_save:,.2f} ฿")
+        
         if total_in > 0:
             percent_save = (total_save / total_in) * 100
             c2.metric("📈 สัดส่วนการออม", f"{percent_save:.1f}%")
-            st.progress(min(total_save / total_in, 1.0))
+            
+            st.markdown("#### 🏁 ความคืบหน้าการออมเทียบกับรายได้")
+            progress_val = min(total_save / total_in, 1.0)
+            st.progress(progress_val)
+            st.write(f"คุณออมเงินไปแล้ว {percent_save:.1f}% ของรายรับทั้งหมดที่มีเมี๊ยวว!")
+            
+            # แผนภูมิวงกลมเฉพาะเงินออม
+            sav_data = df[df['savings'] > 0].groupby('category')['savings'].sum().reset_index()
+            if not sav_data.empty:
+                st.markdown("---")
+                st.markdown("#### 🐷 รายละเอียดการออมแยกหมวดหมู่")
+                fig_sav = px.pie(sav_data, names='category', values='savings', 
+                                 color_discrete_sequence=['#C5E1A5', '#81C784', '#AED581'])
+                st.plotly_chart(fig_sav, use_container_width=True)
+        else:
+            st.info("กรุณาบันทึก 'รายรับ' เพื่อคำนวณสัดส่วนเปอร์เซ็นต์การออมครับ")
     else:
         st.info("ยังไม่มีข้อมูลการออมเมี๊ยวว")
 
+# --- TAB 5: ประวัติและแก้ไข ---
 with tab5:
     st.markdown("### 📖 ประวัติและจัดการรายการ")
     if not df.empty:
-        # คำนวณยอดคงเหลือสะสม (Running Balance)
-        df_sorted = df.sort_values(by=['date', 'id'], ascending=[True, True])
-        df_sorted['คงเหลือสะสม'] = df_sorted['income'].cumsum() - df_sorted['expense'].cumsum() - df_sorted['savings'].cumsum()
-        
-        # เตรียมแสดงผล
-        df_thai = df_sorted.copy()
-        df_thai['ใบเสร็จ'] = df_thai['receipt_img'].apply(get_image_thumbnail)
-        
-        # แปลงชื่อคอลัมน์
-        df_thai = df_thai.rename(columns={
-            'id': 'ลำดับ', 'date': 'วันที่', 'wallet': 'ช่องทาง',
-            'category': 'หมวดหมู่', 'sub_category': 'รายละเอียด',
-            'income': 'รายรับ', 'expense': 'รายจ่าย', 'savings': 'เงินออม',
-            'คงเหลือสะสม': 'คงเหลือ (฿)'
-        })
-        
-        # เลือกคอลัมน์และแสดงจากใหม่ไปเก่า
-        display_cols = ['ลำดับ', 'ใบเสร็จ', 'วันที่', 'ช่องทาง', 'หมวดหมู่', 'รายละเอียด', 'รายรับ', 'รายจ่าย', 'เงินออม', 'คงเหลือ (฿)']
-        df_final = df_thai[display_cols].sort_values(by='ลำดับ', ascending=False)
-        
-        st.write(df_final.to_html(escape=False, index=False), unsafe_allow_html=True)
+        df_display = df.sort_values(by='id', ascending=False)
+        st.dataframe(df_display.drop(columns=['user_id', 'receipt_img']), use_container_width=True)
         
         st.markdown("---")
-        st.markdown("#### 🛠️ จัดการรายการ")
-        selected_id = st.selectbox("เลือก ลำดับ (ID) เพื่อดูรูปใหญ่/แก้ไข:", df_final['ลำดับ'].tolist())
+        st.markdown("#### 🛠️ จัดการรายการและดูใบเสร็จ")
+        selected_id = st.selectbox("เลือก ID รายการที่ต้องการดู/จัดการ:", df_display['id'].tolist())
         
         if selected_id:
             row = df[df['id'] == selected_id].iloc[0]
             if row['receipt_img'] is not None:
-                st.image(row['receipt_img'], width=400, caption="ใบเสร็จขนาดใหญ่")
+                st.markdown("##### 📸 ใบเสร็จ")
+                st.image(row['receipt_img'], width=300)
             
             col_e1, col_e2 = st.columns(2)
             with col_e1:
@@ -191,20 +208,10 @@ with tab5:
                 
             c_btn1, c_btn2 = st.columns(2)
             if c_btn1.button("✅ ยืนยันการแก้ไข", use_container_width=True):
-                if row['income'] > 0: n_vals = (new_amt, 0, 0)
-                elif row['expense'] > 0: n_vals = (0, new_amt, 0)
-                else: n_vals = (0, 0, new_amt)
+                if row['income'] > 0: new_vals = (new_amt, 0, 0)
+                elif row['expense'] > 0: new_vals = (0, new_amt, 0)
+                else: new_vals = (0, 0, new_amt)
                 with sqlite3.connect(DB_NAME) as conn:
-                    conn.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, sub_category=? WHERE id=?", 
-                                 (new_date.strftime('%Y-%m-%d'), n_vals[0], n_vals[1], n_vals[2], new_sub, selected_id))
-                    conn.commit()
-                st.success("แก้ไขข้อมูลเรียบร้อย!")
-                st.rerun()
-                
-            if c_btn2.button("🗑️ ลบรายการนี้", use_container_width=True):
-                with sqlite3.connect(DB_NAME) as conn:
-                    conn.execute("DELETE FROM records WHERE id=?", (int(selected_id),))
-                    conn.commit()
-                st.rerun()
-    else:
-        st.info("ยังไม่มีข้อมูลในประวัติเมี๊ยวว")
+                    c = conn.cursor()
+                    c.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, sub_category=? WHERE id=?", 
+                              (new_date.strftime('%Y-%m-%d'), new_vals[0],
