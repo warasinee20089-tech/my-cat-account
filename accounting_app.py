@@ -25,7 +25,7 @@ st.markdown("""
     }
     .stButton>button:hover { background-color: #FFB7CE; color: white; border: 2px solid #FFB7CE; }
     
-    /* ลบกรอบขาวส่วนเกินของแมวออกตามที่แจ้ง */
+    /* ซ่อนส่วนที่อาจเหลือจาก container เดิม */
     [data-testid="stVerticalBlock"] > div:has(div > img) {
         background-color: transparent !important;
     }
@@ -72,10 +72,10 @@ if not raw_df.empty:
 else:
     df = pd.DataFrame()
 
-# --- 5. HEADER (ตัดส่วนอารมณ์แมวออกแล้ว) ---
-st.markdown(f<div class='main-title'>🐾 Meow Wallet: {user_name} 🐾</div>", unsafe_allow_html=True)
+# --- 5. HEADER (แก้ไขจุดที่ทำให้ Error แล้ว) ---
+st.markdown(f"<div class='main-title'>🐾 Meow Wallet: {user_name} 🐾</div>", unsafe_allow_html=True)
 
-# --- 6. NAVIGATION TABS (ตัด "การออม" ออกเหลือ 4 Tabs) ---
+# --- 6. NAVIGATION TABS ---
 tab1, tab2, tab3, tab4 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "📖 ประวัติและแก้ไข"])
 
 with tab1:
@@ -123,7 +123,7 @@ with tab3:
         df_sorted['เดือน/ปี'] = df_sorted['date'].dt.strftime('%m/%Y')
         m_stats = df_sorted.groupby('เดือน/ปี')[['income', 'expense']].sum().reset_index().rename(columns={'income':'รายรับ','expense':'รายจ่าย'})
         
-        # แก้ไขกราฟ: ตั้งค่าแกน Y เริ่มที่ 0, ห่างทีละ 1000, และชื่อภาษาไทย
+        # ตั้งค่ากราฟ: เริ่ม 0, ห่าง 1000, ภาษาไทย
         fig_bar = px.bar(m_stats, x='เดือน/ปี', y=['รายรับ', 'รายจ่าย'], 
                          barmode='group', 
                          color_discrete_map={'รายรับ':'#FFB7CE','รายจ่าย':'#B2E2F2'},
@@ -135,7 +135,7 @@ with tab3:
                 dtick=1000,
                 gridcolor='rgba(200, 200, 200, 0.3)'
             ),
-            bargap=0.15, # ปรับระยะห่างระหว่างแท่งให้แคบลงตามต้องการ
+            bargap=0.15,
             margin=dict(t=20, b=20, l=20, r=20)
         )
         st.plotly_chart(fig_bar, use_container_width=True)
@@ -157,24 +157,21 @@ with tab4:
         with ce1:
             ed = st.date_input("แก้ไขวัน", row['date'])
             ev = st.number_input("แก้ไขยอดเงิน", value=float(max(row['income'], row['expense'], row['savings'])))
-            if row['receipt_img']: st.image(row['receipt_img'], width=200)
         with ce2:
             ec = st.text_input("แก้ไขหมวดหมู่", value=row['category'])
             es = st.text_input("แก้ไขรายละเอียด", value=row['sub_category'])
-            nu = st.file_uploader("เปลี่ยนใบเสร็จ", type=['jpg', 'png'])
 
         if st.button("✅ ยืนยันแก้ไข"):
             ni, ne, ns = (ev,0,0) if row['income']>0 else (0,ev,0) if row['expense']>0 else (0,0,ev)
-            n_img = nu.getvalue() if nu else row['receipt_img']
-            conn.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, category=?, sub_category=?, receipt_img=? WHERE id=?", 
-                         (ed.strftime('%Y-%m-%d'), ni, ne, ns, ec, es, n_img, sid))
+            conn.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, category=?, sub_category=? WHERE id=?", 
+                         (ed.strftime('%Y-%m-%d'), ni, ne, ns, ec, es, sid))
             conn.commit(); st.rerun()
         
         if st.button("🗑️ ลบรายการนี้"):
             conn.execute("DELETE FROM records WHERE id=?", (sid,))
             conn.commit(); st.rerun()
 
-# --- 7. FOOTER (ย้ายปุ่มมาไว้ตรงกลาง) ---
+# --- 7. FOOTER (ปุ่มออกจากระบบอยู่กึ่งกลาง) ---
 st.markdown("---")
 _, mid_col, _ = st.columns([1, 0.6, 1])
 with mid_col:
