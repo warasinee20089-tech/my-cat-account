@@ -23,7 +23,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. ฟังก์ชันจัดการฐานข้อมูล (ปรับให้สเถียรขึ้น) ---
+# --- 2. ฟังก์ชันจัดการฐานข้อมูล ---
 DB_NAME = 'meow_wallet_v20.db'
 
 def init_db():
@@ -112,31 +112,77 @@ with tab2:
         cols = [c_w1, c_w2, c_w3]
         cols[i].metric(w, f"{bal:,.2f} ฿")
 
-# --- TAB 3: วิเคราะห์ ---
+# --- TAB 3: วิเคราะห์ (แยกส่วนและแก้ไขแผนภูมิ) ---
 with tab3:
     st.markdown("### 📊 วิเคราะห์การเงินรายเดือน")
     if not df.empty:
+        # 1. กราฟแท่งเปรียบเทียบ รายรับ - รายจ่าย
         monthly_stats = df.groupby('เดือน')[['income', 'expense']].sum().reset_index()
         monthly_stats = monthly_stats.rename(columns={'income': 'รายรับ', 'expense': 'รายจ่าย'})
         fig_bar = px.bar(monthly_stats, x='เดือน', y=['รายรับ', 'รายจ่าย'], 
-                         barmode='group', title="📈 เปรียบเทียบรายรับ - รายจ่าย",
+                         barmode='group', title="📈 แนวโน้มรายรับ - รายจ่าย",
                          color_discrete_sequence=['#B2E2F2', '#FF9AA2'])
         st.plotly_chart(fig_bar, use_container_width=True)
+
+        st.markdown("---")
+        
+        # 2. แผนภูมิวงกลมแยกหมวดหมู่
+        col_a, col_b = st.columns(2)
+        with col_a:
+            inc_data = df[df['income'] > 0].groupby('category')['income'].sum().reset_index()
+            if not inc_data.empty:
+                st.markdown("#### 💰 รายรับแยกตามหมวดหมู่")
+                fig_inc = px.pie(inc_data, names='category', values='income', 
+                                 hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                st.plotly_chart(fig_inc, use_container_width=True)
+            else:
+                st.info("ยังไม่มีข้อมูลรายรับ")
+
+        with col_b:
+            exp_data = df[df['expense'] > 0].groupby('category')['expense'].sum().reset_index()
+            if not exp_data.empty:
+                st.markdown("#### 💸 รายจ่ายแยกตามหมวดหมู่")
+                fig_exp = px.pie(exp_data, names='category', values='expense', 
+                                 hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel2)
+                st.plotly_chart(fig_exp, use_container_width=True)
+            else:
+                st.info("ยังไม่มีข้อมูลรายจ่าย")
     else:
         st.info("บันทึกข้อมูลก่อนเพื่อดูการวิเคราะห์เมี๊ยวว")
 
-# --- TAB 4: การออม ---
+# --- TAB 4: การออม (แยกออกมาเป็นสัดส่วน) ---
 with tab4:
-    st.markdown("### 🎯 การออม")
-    total_save = df['savings'].sum() if not df.empty else 0
-    total_in = df['income'].sum() if not df.empty else 0
-    st.metric("เงินออมสะสม", f"{total_save:,.2f} ฿")
-    if total_in > 0:
-        progress_val = min(total_save/total_in, 1.0)
-        st.progress(progress_val)
-        st.write(f"ออมไปแล้ว {(total_save/total_in)*100:.1f}% ของรายรับทั้งหมด")
+    st.markdown("### 🎯 การติดตามการออม")
+    if not df.empty:
+        total_save = df['savings'].sum()
+        total_in = df['income'].sum()
+        
+        c1, c2 = st.columns(2)
+        c1.metric("💰 เงินออมสะสมทั้งหมด", f"{total_save:,.2f} ฿")
+        
+        if total_in > 0:
+            percent_save = (total_save / total_in) * 100
+            c2.metric("📈 สัดส่วนการออม", f"{percent_save:.1f}%")
+            
+            st.markdown("#### 🏁 ความคืบหน้าการออมเทียบกับรายได้")
+            progress_val = min(total_save / total_in, 1.0)
+            st.progress(progress_val)
+            st.write(f"คุณออมเงินไปแล้ว {percent_save:.1f}% ของรายรับทั้งหมดที่มีเมี๊ยวว!")
+            
+            # แผนภูมิวงกลมเฉพาะเงินออม
+            sav_data = df[df['savings'] > 0].groupby('category')['savings'].sum().reset_index()
+            if not sav_data.empty:
+                st.markdown("---")
+                st.markdown("#### 🐷 รายละเอียดการออมแยกหมวดหมู่")
+                fig_sav = px.pie(sav_data, names='category', values='savings', 
+                                 color_discrete_sequence=['#C5E1A5', '#81C784', '#AED581'])
+                st.plotly_chart(fig_sav, use_container_width=True)
+        else:
+            st.info("กรุณาบันทึก 'รายรับ' เพื่อคำนวณสัดส่วนเปอร์เซ็นต์การออมครับ")
+    else:
+        st.info("ยังไม่มีข้อมูลการออมเมี๊ยวว")
 
-# --- TAB 5: ประวัติและแก้ไข (ส่วนที่ Error ได้รับการแก้ไขที่นี่) ---
+# --- TAB 5: ประวัติและแก้ไข ---
 with tab5:
     st.markdown("### 📖 ประวัติและจัดการรายการ")
     if not df.empty:
@@ -149,7 +195,6 @@ with tab5:
         
         if selected_id:
             row = df[df['id'] == selected_id].iloc[0]
-            
             if row['receipt_img'] is not None:
                 st.markdown("##### 📸 ใบเสร็จ")
                 st.image(row['receipt_img'], width=300)
@@ -162,13 +207,10 @@ with tab5:
                 new_sub = st.text_input("แก้ไขรายละเอียด", value=row['sub_category'])
                 
             c_btn1, c_btn2 = st.columns(2)
-            
-            # ปุ่มแก้ไข
             if c_btn1.button("✅ ยืนยันการแก้ไข", use_container_width=True):
                 if row['income'] > 0: new_vals = (new_amt, 0, 0)
                 elif row['expense'] > 0: new_vals = (0, new_amt, 0)
                 else: new_vals = (0, 0, new_amt)
-                
                 with sqlite3.connect(DB_NAME) as conn:
                     c = conn.cursor()
                     c.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, sub_category=? WHERE id=?", 
@@ -177,7 +219,6 @@ with tab5:
                 st.success("แก้ไขข้อมูลเรียบร้อย!")
                 st.rerun()
                 
-            # ปุ่มลบ (แก้ไขให้สมบูรณ์แล้ว)
             if c_btn2.button("🗑️ ลบรายการนี้", use_container_width=True):
                 with sqlite3.connect(DB_NAME) as conn:
                     c = conn.cursor()
@@ -187,4 +228,3 @@ with tab5:
                 st.rerun()
     else:
         st.info("ยังไม่มีข้อมูลในประวัติ")
-
