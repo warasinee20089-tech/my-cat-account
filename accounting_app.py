@@ -4,14 +4,13 @@ import sqlite3
 import plotly.express as px
 from datetime import datetime
 
-# --- 1. SETTINGS & STYLES (ปรับหน้า Login และ UI ให้เหมือนรูปเป๊ะ) ---
+# --- 1. SETTINGS & STYLES ---
 st.set_page_config(page_title="Meow Wallet Ultimate", layout="wide", page_icon="🐾")
 
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500&display=swap');
     
-    /* พื้นหลังสีชมพูพาสเทล */
     .stApp { background-color: #FFF0F5 !important; }
     
     html, body, [class*="css"], .stMarkdown, p, span, label { 
@@ -20,20 +19,15 @@ st.markdown("""
     
     .main-title { color: #FF69B4; text-align: center; font-size: 50px; font-weight: bold; padding: 10px; margin-top: 20px; }
     
-    /* ปรับแต่งปุ่มให้มนและสีพาสเทล */
     .stButton>button { 
         border-radius: 20px; background-color: white; color: #FF69B4; 
         border: 2px solid #FFB7CE; font-weight: bold; width: 100%; height: 45px;
     }
     .stButton>button:hover { background-color: #FFB7CE; color: white; border: 2px solid #FFB7CE; }
     
-    /* ปรับแต่ง Progress Bar ให้เป็นสีเขียว */
-    div[data-testid="stProgress"] > div > div > div > div { background-color: #98FB98 !important; }
-    
-    /* กล่องข้อความน้องแมว */
-    .meow-speech-bubble {
-        background-color: white; border-radius: 20px; padding: 15px;
-        border: 2px solid #FFD1DC; text-align: center; margin-bottom: 20px;
+    /* ลบกรอบขาวส่วนเกินของแมวออกตามที่แจ้ง */
+    [data-testid="stVerticalBlock"] > div:has(div > img) {
+        background-color: transparent !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -44,17 +38,15 @@ def init_db():
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS records 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, 
-                  wallet TEXT, category TEXT, sub_category TEXT,
-                  income REAL DEFAULT 0, expense REAL DEFAULT 0, savings REAL DEFAULT 0,
-                  receipt_img BLOB)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS goals 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, goal_name TEXT, goal_amount REAL)''')
+                 wallet TEXT, category TEXT, sub_category TEXT,
+                 income REAL DEFAULT 0, expense REAL DEFAULT 0, savings REAL DEFAULT 0,
+                 receipt_img BLOB)''')
     conn.commit()
     return conn
 
 conn = init_db()
 
-# --- 3. LOGIN SYSTEM (หน้า Login เหมือนรูปที่ 1) ---
+# --- 3. LOGIN SYSTEM ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user_name' not in st.session_state: st.session_state.user_name = ""
 
@@ -74,38 +66,17 @@ if not st.session_state.logged_in:
 # --- 4. DATA LOADING ---
 user_name = st.session_state.user_name
 raw_df = pd.read_sql(f"SELECT * FROM records WHERE user_id='{user_name}'", conn)
-
 if not raw_df.empty:
     raw_df['date'] = pd.to_datetime(raw_df['date'], errors='coerce')
     df = raw_df.dropna(subset=['date']).copy()
 else:
     df = pd.DataFrame()
 
-total_in = df['income'].sum() if not df.empty else 0
-total_out = df['expense'].sum() if not df.empty else 0
-total_save = df['savings'].sum() if not df.empty else 0
+# --- 5. HEADER (ตัดส่วนอารมณ์แมวออกแล้ว) ---
+st.markdown(f<div class='main-title'>🐾 Meow Wallet: {user_name} 🐾</div>", unsafe_allow_html=True)
 
-# --- 5. HEADER & EMOTION (ดึงแมวกลับมาตามรูปที่ 2) ---
-st.markdown(f"<div class='main-title'>🐾 Meow Wallet: {user_name} 🐾</div>", unsafe_allow_html=True)
-
-# ตรรกะอารมณ์แมว
-if total_out > total_in:
-    face, msg = "🙀", "ว้าย! ทาสใช้เงินเกินตัวแล้วนะ ติดลบแบบนี้เค้าตกใจเมี๊ยว!"
-elif total_save > 0:
-    face, msg = "😸", "เก่งมากทาส มีเงินออมแบบนี้เค้ายิ้มแก้มปริเลยเมี๊ยวว!"
-else:
-    face, msg = "😺", "วันนี้ก็ใช้ชีวิตได้ดีนะทาส ตั้งใจเก็บเงินต่อไปล่ะเมี๊ยวว"
-
-# แสดงผลแมวตรงกลางหน้า
-st.markdown(f"""
-    <div class='meow-speech-bubble'>
-        <h1 style='font-size: 80px; margin: 0;'>{face}</h1>
-        <p style='font-size: 18px; margin-top: 10px;'>"{msg}"</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-# --- 6. NAVIGATION TABS ---
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "🎯 การออม", "📖 ประวัติและแก้ไข"])
+# --- 6. NAVIGATION TABS (ตัด "การออม" ออกเหลือ 4 Tabs) ---
+tab1, tab2, tab3, tab4 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "📖 ประวัติและแก้ไข"])
 
 with tab1:
     st.markdown("### ✨ เพิ่มรายการใหม่")
@@ -152,9 +123,21 @@ with tab3:
         df_sorted['เดือน/ปี'] = df_sorted['date'].dt.strftime('%m/%Y')
         m_stats = df_sorted.groupby('เดือน/ปี')[['income', 'expense']].sum().reset_index().rename(columns={'income':'รายรับ','expense':'รายจ่าย'})
         
-        max_v = max(m_stats['รายรับ'].max(), m_stats['รายจ่าย'].max())
-        fig_bar = px.bar(m_stats, x='เดือน/ปี', y=['รายรับ', 'รายจ่าย'], barmode='group', color_discrete_map={'รายรับ':'#FFB7CE','รายจ่าย':'#B2E2F2'})
-        fig_bar.update_layout(yaxis=dict(range=[0, max_v * 1.2 if max_v > 0 else 1000]))
+        # แก้ไขกราฟ: ตั้งค่าแกน Y เริ่มที่ 0, ห่างทีละ 1000, และชื่อภาษาไทย
+        fig_bar = px.bar(m_stats, x='เดือน/ปี', y=['รายรับ', 'รายจ่าย'], 
+                         barmode='group', 
+                         color_discrete_map={'รายรับ':'#FFB7CE','รายจ่าย':'#B2E2F2'},
+                         labels={'value': 'ยอดเงิน (บาท)', 'variable': 'ประเภท'})
+        
+        fig_bar.update_layout(
+            yaxis=dict(
+                tick0=0,
+                dtick=1000,
+                gridcolor='rgba(200, 200, 200, 0.3)'
+            ),
+            bargap=0.15, # ปรับระยะห่างระหว่างแท่งให้แคบลงตามต้องการ
+            margin=dict(t=20, b=20, l=20, r=20)
+        )
         st.plotly_chart(fig_bar, use_container_width=True)
         
         c1, c2 = st.columns(2)
@@ -163,35 +146,6 @@ with tab3:
     else: st.info("ยังไม่มีข้อมูลสำหรับวิเคราะห์เมี๊ยว")
 
 with tab4:
-    # --- หน้าเป้าหมาย (แก้ปัญหาซ้อนกันและเปลี่ยนแถบเป็นสีเขียว ตามรูปที่ 3) ---
-    st.markdown("### 🎯 เป้าหมายการออม")
-    g_df = pd.read_sql(f"SELECT * FROM goals WHERE user_id='{user_name}'", conn)
-    
-    col_input, col_display = st.columns([1, 1.5]) # แยก Column ไม่ให้ข้อมูลซ้อนกัน
-    
-    with col_input:
-        st.write("🚩 เพิ่มเป้าหมายใหม่")
-        gn = st.text_input("ออมเพื่ออะไร?")
-        ga = st.number_input("ยอดเงินเป้าหมาย", min_value=0.0, key="goal_amt_input")
-        if st.button("🚩 เพิ่มเป้าหมาย"):
-            conn.execute("INSERT INTO goals (user_id, goal_name, goal_amount) VALUES (?,?,?)", (user_name, gn, ga))
-            conn.commit(); st.rerun()
-            
-    with col_display:
-        st.write("🏆 รายการเป้าหมายปัจจุบัน")
-        for _, r in g_df.iterrows():
-            with st.container():
-                # จัด Layout ภายในเป้าหมายให้ดูสะอาด
-                st.markdown(f"**📌 {r['goal_name']}**")
-                p = min(total_save / r['goal_amount'], 1.0) if r['goal_amount'] > 0 else 0
-                st.progress(p) # แถบจะเป็นสีเขียวตาม CSS ด้านบน
-                st.write(f"สำเร็จ {p*100:.1f}% ({total_save:,.2f} / {r['goal_amount']:,.2f} ฿)")
-                if st.button("🗑️ ลบเป้าหมาย", key=f"dg_{r['id']}"):
-                    conn.execute("DELETE FROM goals WHERE id=?", (r['id'],))
-                    conn.commit(); st.rerun()
-                st.markdown("---")
-
-with tab5:
     st.markdown("### 📖 ประวัติและแก้ไข")
     if not df.empty:
         df_sh = df.sort_values(by='id', ascending=False)
@@ -218,7 +172,12 @@ with tab5:
         
         if st.button("🗑️ ลบรายการนี้"):
             conn.execute("DELETE FROM records WHERE id=?", (sid,))
-            conn.commit(); st.rerun() # แก้ไขเป็น conn.commit() เรียบร้อยครับ
+            conn.commit(); st.rerun()
 
+# --- 7. FOOTER (ย้ายปุ่มมาไว้ตรงกลาง) ---
 st.markdown("---")
-if st.button("🚪 ออกจากระบบ"): st.session_state.logged_in = False; st.rerun()
+_, mid_col, _ = st.columns([1, 0.6, 1])
+with mid_col:
+    if st.button("🚪 ออกจากระบบ"): 
+        st.session_state.logged_in = False
+        st.rerun()
