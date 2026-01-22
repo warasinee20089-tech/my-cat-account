@@ -16,7 +16,6 @@ st.markdown("""
     }
     .main-title { color: #FFB7CE; text-align: center; font-size: 45px; font-weight: bold; padding: 20px; }
     .stButton>button { border-radius: 10px; background-color: #FFB7CE; color: white; border: none; font-weight: bold; width: 100%; height: 45px; }
-    .stButton>button:hover { background-color: #FFC0CB; color: white; }
     div[data-testid="stMetric"] { background: white !important; border-radius: 15px; border: 2px solid #FFE4E1 !important; padding: 15px; }
     .budget-box { background: white; border-radius: 15px; padding: 20px; border: 2px solid #FFE4E1; margin-bottom: 25px; }
     </style>
@@ -24,7 +23,7 @@ st.markdown("""
 
 # --- 2. DATABASE ENGINE ---
 def init_db():
-    conn = sqlite3.connect('meow_stable_v56.db', check_same_thread=False)
+    conn = sqlite3.connect('meow_stable_v57.db', check_same_thread=False)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS records 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, 
@@ -55,12 +54,12 @@ if not st.session_state.logged_in:
                 st.rerun()
     st.stop()
 
-# --- 4. DATA PROCESSING (Fixed Datetime Error) ---
+# --- 4. DATA LOADING & SAFE CONVERSION ---
 user_name = st.session_state.user_name
 raw_df = pd.read_sql(f"SELECT * FROM records WHERE user_id='{user_name}'", conn)
 
 if not raw_df.empty:
-    # แปลงวันที่ให้เป็นรูปแบบ Datetime ที่ถูกต้องเพื่อป้องกัน AttributeError
+    # แก้ไข AttributeError โดยการแปลงวันที่ให้เป็น Datetime ก่อนใช้งาน
     raw_df['date'] = pd.to_datetime(raw_df['date'], errors='coerce')
     df = raw_df.dropna(subset=['date']).copy()
     current_month_str = datetime.now().strftime('%Y-%m')
@@ -123,7 +122,7 @@ with tab2:
     w_cols = st.columns(3)
     wallets_list = ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"]
     for i, w_name in enumerate(wallets_list):
-        # แก้ไข NameError โดยใช้ชื่อตัวแปรที่ถูกต้อง
+        # แก้ไข NameError โดยการเรียกใช้ตัวแปรที่ถูกต้อง
         bal = 0.0
         if not df.empty:
             w_df = df[df['wallet'] == w_name]
@@ -133,7 +132,7 @@ with tab2:
 with tab3:
     st.markdown("### 📊 วิเคราะห์และกราฟ")
     if not df.empty:
-        # กราฟแท่งเปรียบเทียบ
+        # กราฟแท่งเปรียบเทียบ (ภาษาไทย)
         df_sorted = df.sort_values('date')
         df_sorted['เดือน/ปี'] = df_sorted['date'].dt.strftime('%m/%Y')
         m_stats = df_sorted.groupby('เดือน/ปี')[['income', 'expense']].sum().reset_index().rename(columns={'income':'รายรับ','expense':'รายจ่าย'})
@@ -196,7 +195,7 @@ with tab5:
         
         if st.button("🗑️ ลบรายการนี้"):
             conn.execute("DELETE FROM records WHERE id=?", (sid,))
-            conn.commit(); st.rerun() # แก้ไขจาก co เป็น conn.commit() แล้วครับ
+            conn.commit(); st.rerun() # แก้ไขคำสั่งลบจาก co เป็น conn.commit() แล้วครับ
 
 st.markdown("---")
 if st.button("🚪 ออกจากระบบ"): st.session_state.logged_in = False; st.rerun()
