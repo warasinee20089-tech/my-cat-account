@@ -4,7 +4,7 @@ import sqlite3
 import plotly.express as px
 from datetime import datetime
 
-# --- 1. SETTINGS & STYLES (คุมโทนพาสเทลตามรูป) ---
+# --- 1. SETTINGS & STYLES ---
 st.set_page_config(page_title="Meow Wallet Ultimate", layout="wide", page_icon="🐾")
 
 st.markdown("""
@@ -14,25 +14,17 @@ st.markdown("""
     html, body, [class*="css"], .stMarkdown, p, span, label { 
         font-family: 'Kanit', sans-serif !important; color: #4A4A4A !important;
     }
-    .main-title { color: #FFB7CE; text-align: center; font-size: 40px; font-weight: bold; padding: 10px; margin-bottom: 0; }
-    .meow-card { 
-        background: white; border-radius: 20px; padding: 20px; 
-        border: 2px solid #FFE4E1; text-align: center; margin-bottom: 15px; 
-        min-height: 200px; display: flex; flex-direction: column; justify-content: center; align-items: center;
-    }
+    .main-title { color: #FFB7CE; text-align: center; font-size: 45px; font-weight: bold; padding: 20px; }
     .stButton>button { border-radius: 10px; background-color: #FFB7CE; color: white; border: none; font-weight: bold; width: 100%; height: 45px; }
     .stButton>button:hover { background-color: #FFC0CB; color: white; }
-    /* ปรับแต่ง Tab ให้เหมือนในรูป */
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
-    .stTabs [data-baseweb="tab"] {
-        background-color: white; border-radius: 10px 10px 0 0; padding: 10px 20px; border: 1px solid #FFE4E1;
-    }
+    div[data-testid="stMetric"] { background: white !important; border-radius: 15px; border: 2px solid #FFE4E1 !important; padding: 15px; }
+    .budget-box { background: white; border-radius: 15px; padding: 20px; border: 2px solid #FFE4E1; margin-bottom: 25px; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 2. DATABASE ENGINE ---
 def init_db():
-    conn = sqlite3.connect('meow_pro_v54.db', check_same_thread=False)
+    conn = sqlite3.connect('meow_stable_v56.db', check_same_thread=False)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS records 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, 
@@ -46,7 +38,7 @@ def init_db():
 
 conn = init_db()
 
-# --- 3. LOGIN ---
+# --- 3. LOGIN SYSTEM ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user_name' not in st.session_state: st.session_state.user_name = ""
 
@@ -54,7 +46,7 @@ if not st.session_state.logged_in:
     st.markdown("<div class='main-title'>🐾 Meow Wallet 🐾</div>", unsafe_allow_html=True)
     _, col_login, _ = st.columns([1, 1.5, 1])
     with col_login:
-        st.markdown("<h1 style='text-align: center; font-size: 100px;'>🐱</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; font-size: 80px;'>🐱</h1>", unsafe_allow_html=True)
         name_in = st.text_input("ชื่อทาสแมว:", placeholder="พิมพ์ชื่อเพื่อเข้าสู่ระบบ...")
         if st.button("เข้าสู่ระบบ 🐾"):
             if name_in.strip():
@@ -63,15 +55,16 @@ if not st.session_state.logged_in:
                 st.rerun()
     st.stop()
 
-# --- 4. DATA LOADING & PROCESSING ---
+# --- 4. DATA PROCESSING (Fixed Datetime Error) ---
 user_name = st.session_state.user_name
 raw_df = pd.read_sql(f"SELECT * FROM records WHERE user_id='{user_name}'", conn)
 
 if not raw_df.empty:
-    raw_df['date'] = pd.to_datetime(raw_df['date'])
+    # แปลงวันที่ให้เป็นรูปแบบ Datetime ที่ถูกต้องเพื่อป้องกัน AttributeError
+    raw_df['date'] = pd.to_datetime(raw_df['date'], errors='coerce')
     df = raw_df.dropna(subset=['date']).copy()
-    current_month = datetime.now().strftime('%Y-%m')
-    df_current = df[df['date'].dt.strftime('%Y-%m') == current_month]
+    current_month_str = datetime.now().strftime('%Y-%m')
+    df_current = df[df['date'].dt.strftime('%Y-%m') == current_month_str]
 else:
     df = pd.DataFrame()
     df_current = pd.DataFrame()
@@ -80,40 +73,22 @@ total_in = df['income'].sum() if not df.empty else 0
 total_out = df['expense'].sum() if not df.empty else 0
 total_save = df['savings'].sum() if not df.empty else 0
 
-# --- 5. SMART EMOTION & BUDGET LOGIC ---
+# --- 5. HEADER (Clean Layout - No Emotion) ---
+st.markdown(f"<div class='main-title'>🐾 Meow Wallet: {user_name} 🐾</div>", unsafe_allow_html=True)
+
+# Budget Gauge 1,000.-
 budget_limit = 1000.0
 current_exp = df_current['expense'].sum() if not df_current.empty else 0
 budget_usage = (current_exp / budget_limit)
 
-# เลือกหน้าแมวตามสถานะการเงิน
-if total_in > 0 and (total_save / total_in >= 0.3):
-    face, msg = "😸", "วันนี้ออมเงินเก่งจัง เค้ายิ้มแก้มปริเลยเมี๊ยวว!"
-elif total_out > total_in:
-    face, msg = "🙀", "ว้าย! ทาสใช้เงินเกินตัวแล้วนะ ติดลบแบบนี้เค้าตกใจเมี๊ยว!"
-else:
-    face, msg = "😺", "วันนี้ก็ใช้ชีวิตได้ดีนะทาส ตั้งใจเก็บเงินต่อไปล่ะเมี๊ยวว"
+st.markdown("<div class='budget-box'>", unsafe_allow_html=True)
+st.write(f"**💰 งบประมาณเดือนนี้: {current_exp:,.2f} / {budget_limit:,.2f} ฿**")
+st.progress(min(budget_usage, 1.0))
+if budget_usage >= 0.9:
+    st.markdown("<p style='color:red; font-weight:bold;'>🙀 ทาสหยุดช้อปได้แล้ว! อาหารแมวจะหมดแล้วนะ!</p>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
 
-# --- 6. TOP SECTION (เหมือนในรูปเป๊ะ) ---
-st.markdown(f"<div class='main-title'>🐾 Meow Wallet: {user_name} 🐾</div>", unsafe_allow_html=True)
-
-col_left, col_right = st.columns([1, 2])
-
-with col_left:
-    st.markdown(f"""
-        <div class='meow-card'>
-            <h1 style='font-size:80px; margin:0;'>{face}</h1>
-            <p style='font-size:16px; margin-top:10px;'>{msg}</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-with col_right:
-    st.markdown("<div style='height: 40px;'></div>", unsafe_allow_html=True) # เว้นระยะ
-    st.write(f"**งบประมาณรายเดือน (ต.ค.): {current_exp:,.2f} / {budget_limit:,.2f} ฿**")
-    st.progress(min(budget_usage, 1.0))
-    if budget_usage >= 0.9:
-        st.markdown("<p style='color:red; font-weight:bold;'>🙀 ทาสหยุดช้อปได้แล้ว! อาหารแมวจะหมดแล้วนะ!</p>", unsafe_allow_html=True)
-
-# --- 7. NAVIGATION TABS ---
+# --- 6. NAVIGATION TABS ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "🎯 การออม", "📖 ประวัติและแก้ไข"])
 
 with tab1:
@@ -144,10 +119,15 @@ with tab1:
             conn.commit(); st.rerun()
 
 with tab2:
-    st.markdown("### 🏦 ยอดคงเหลือรายกระเป๋า")
+    st.markdown("### 🏦 ยอดเงินคงเหลือ")
     w_cols = st.columns(3)
-    for i, w_n in enumerate(["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"]):
-        bal = df[df['wallet'] == w_n].apply(lambda x: x['income'] - x['expense'] - x['savings'], axis=1).sum() if not df.empty else 0
+    wallets_list = ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"]
+    for i, w_name in enumerate(wallets_list):
+        # แก้ไข NameError โดยใช้ชื่อตัวแปรที่ถูกต้อง
+        bal = 0.0
+        if not df.empty:
+            w_df = df[df['wallet'] == w_name]
+            bal = w_df['income'].sum() - (w_df['expense'].sum() + w_df['savings'].sum())
         w_cols[i].metric(w_name, f"{bal:,.2f} ฿")
 
 with tab3:
@@ -165,8 +145,9 @@ with tab3:
         st.plotly_chart(fig_bar, use_container_width=True)
         
         c1, c2 = st.columns(2)
-        with c1: st.plotly_chart(px.pie(df[df['income']>0], values='income', names='category', title="💰 รายรับ"), use_container_width=True)
-        with c2: st.plotly_chart(px.pie(df[df['expense']>0], values='expense', names='category', title="🍱 รายจ่าย"), use_container_width=True)
+        with c1: st.plotly_chart(px.pie(df[df['income']>0], values='income', names='category', title="💰 รายรับแยกหมวดหมู่"), use_container_width=True)
+        with c2: st.plotly_chart(px.pie(df[df['expense']>0], values='expense', names='category', title="🍱 รายจ่ายแยกหมวดหมู่"), use_container_width=True)
+    else: st.info("ยังไม่มีข้อมูลเมี๊ยว")
 
 with tab4:
     st.markdown("### 🎯 เป้าหมายการออม")
@@ -174,8 +155,8 @@ with tab4:
     col_a, col_b = st.columns([1, 1.5])
     with col_a:
         gn = st.text_input("ออมเพื่ออะไร?")
-        ga = st.number_input("เป้าหมายยอดเงิน", min_value=0.0)
-        if st.button("🚩 บันทึกเป้าหมาย"):
+        ga = st.number_input("ยอดเงินเป้าหมาย", min_value=0.0)
+        if st.button("🚩 เพิ่มเป้าหมาย"):
             conn.execute("INSERT INTO goals (user_id, goal_name, goal_amount) VALUES (?,?,?)", (user_name, gn, ga))
             conn.commit(); st.rerun()
     with col_b:
@@ -183,7 +164,7 @@ with tab4:
             with st.expander(f"📌 {r['goal_name']}"):
                 p = min(total_save / r['goal_amount'], 1.0) if r['goal_amount'] > 0 else 0
                 st.progress(p)
-                st.write(f"เก็บได้แล้ว {total_save:,.0f} / {r['goal_amount']:,.0f} ฿")
+                st.write(f"สำเร็จ {p*100:.1f}% ({total_save:,.2f} / {r['goal_amount']:,.2f} ฿)")
                 if st.button("🗑️ ลบเป้าหมาย", key=f"dg_{r['id']}"):
                     conn.execute("DELETE FROM goals WHERE id=?", (r['id'],))
                     conn.commit(); st.rerun()
@@ -215,7 +196,7 @@ with tab5:
         
         if st.button("🗑️ ลบรายการนี้"):
             conn.execute("DELETE FROM records WHERE id=?", (sid,))
-            conn.commit(); st.rerun()
+            conn.commit(); st.rerun() # แก้ไขจาก co เป็น conn.commit() แล้วครับ
 
 st.markdown("---")
 if st.button("🚪 ออกจากระบบ"): st.session_state.logged_in = False; st.rerun()
