@@ -4,7 +4,7 @@ import sqlite3
 import plotly.express as px
 from datetime import datetime
 
-# --- 1. SETTINGS & STYLES (คงเดิม) ---
+# --- 1. SETTINGS & STYLES ---
 st.set_page_config(page_title="Meow Wallet Pro", layout="wide", page_icon="🐾")
 
 st.markdown("""
@@ -20,15 +20,17 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. DATABASE ENGINE ---
+# --- 2. DATABASE ---
 def init_db():
-    conn = sqlite3.connect('meow_pro_v54.db', check_same_thread=False)
+    conn = sqlite3.connect('meow_pro_v53.db', check_same_thread=False)
     c = conn.cursor()
+    # ตารางบันทึก
     c.execute('''CREATE TABLE IF NOT EXISTS records 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, 
                   wallet TEXT, category TEXT, sub_category TEXT,
                   income REAL DEFAULT 0, expense REAL DEFAULT 0, savings REAL DEFAULT 0,
                   receipt_img BLOB)''')
+    # ตารางเป้าหมาย (รองรับหลายเป้าหมาย)
     c.execute('''CREATE TABLE IF NOT EXISTS goals 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, goal_name TEXT, goal_amount REAL)''')
     conn.commit()
@@ -52,29 +54,20 @@ if not st.session_state.logged_in:
                 st.rerun()
     st.stop()
 
-# --- 4. DATA LOADING & SAFE CONVERSION ---
+# --- 4. DATA LOADING ---
 user_name = st.session_state.user_name
 raw_df = pd.read_sql(f"SELECT * FROM records WHERE user_id='{user_name}'", conn)
 if not raw_df.empty:
-    # แก้ไขปัญหา Datetime Accessor โดยการแปลงให้ชัวร์ก่อนใช้งาน
-    raw_df['date'] = pd.to_datetime(raw_df['date'], errors='coerce')
+    raw_df['date'] = pd.to_datetime(raw_df['date'])
     df = raw_df.dropna(subset=['date']).copy()
 else:
     df = pd.DataFrame()
 
-# --- 5. UI HEADER ---
+# --- 5. UI TABS ---
 st.markdown(f"<div class='main-title'>🐾 Meow Wallet 🐾</div>", unsafe_allow_html=True)
-# ส่วนคำพูดแมวแบบไม่มีกรอบ
-total_in = df['income'].sum() if not df.empty else 0
-total_out = df['expense'].sum() if not df.empty else 0
-face, msg = ("😸", "วันนี้ออมเงินเก่งจัง!") if total_in > 0 and (df['savings'].sum()/total_in >= 0.3) else ("😺", "บริหารเงินได้ดีนะทาสเมี๊ยว")
-if total_out > total_in: face, msg = "🙀", "ว้าย! ใช้เงินเกินตัวแล้วนะทาส!"
-
-st.markdown(f"<div style='text-align:center; margin-bottom:20px;'><h1 style='font-size:70px; margin:0;'>{face}</h1><p style='color:#FF69B4;'>\"{msg}\"</p></div>", unsafe_allow_html=True)
-
-# --- TABS ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 บันทึก", "🏦 กระเป๋า", "📊 วิเคราะห์", "🎯 เป้าหมาย", "📖 ประวัติและแก้ไข"])
 
+# --- TAB 1: บันทึก ---
 with tab1:
     st.markdown("### ✨ เพิ่มรายการใหม่")
     ca, cb = st.columns(2)
@@ -84,94 +77,122 @@ with tab1:
         t_in = st.radio("🏷️ ประเภท", ["รายจ่าย 💸", "รายรับ 💰", "เงินออม 🐷"], horizontal=True)
         up_file = st.file_uploader("📸 แนบใบเสร็จ", type=['jpg', 'jpeg', 'png'])
     with cb:
-        c_map = {"รายรับ 💰": ["เงินเดือน 💸", "โบนัส 🎁", "ขายของ 🛍️", "ระบุเอง ✍️"], "รายจ่าย 💸": ["ค่าอาหาร 🍱", "เดินทาง 🚗", "ช้อปปิ้ง 🛒", "ระบุเอง ✍️"], "เงินออม 🐷": ["ออมทั่วไป 🏦", "ออมฉุกเฉิน 🚑", "ระบุเอง ✍️"]}
+        c_map = {
+            "รายรับ 💰": ["เงินเดือน 💸", "โบนัส 🎁", "ขายของ 🛍️", "ระบุเอง ✍️"],
+            "รายจ่าย 💸": ["ค่าอาหาร 🍱", "เดินทาง 🚗", "ช้อปปิ้ง 🛒", "ระบุเอง ✍️"],
+            "เงินออม 🐷": ["ออมทั่วไป 🏦", "ออมฉุกเฉิน 🚑", "ระบุเอง ✍️"]
+        }
         s_cat = st.selectbox("📁 หมวดหมู่", c_map[t_in])
-        f_cat = st.text_input("📝 ระบุเอง") if s_cat == "ระบุเอง ✍️" else s_cat
-        s_det = st.text_input("🔍 รายละเอียด")
+        final_cat = st.text_input("📝 ระบุหมวดหมู่เอง") if s_cat == "ระบุเอง ✍️" else s_cat
+        s_detail = st.text_input("🔍 รายละเอียด")
         s_amt = st.number_input("💵 จำนวนเงิน", min_value=0.0)
+    
     if st.button("💖 บันทึกรายการ"):
-        if s_amt > 0 and f_cat:
+        if s_amt > 0 and final_cat:
             img = up_file.getvalue() if up_file else None
-            inc, exp, sav = (s_amt,0,0) if t_in=="รายรับ 💰" else (0,s_amt,0) if t_in=="รายจ่าย 💸" else (0,0,s_amt)
+            inc = s_amt if t_in == "รายรับ 💰" else 0
+            exp = s_amt if t_in == "รายจ่าย 💸" else 0
+            sav = s_amt if t_in == "เงินออม 🐷" else 0
             conn.execute("INSERT INTO records (user_id, date, wallet, category, sub_category, income, expense, savings, receipt_img) VALUES (?,?,?,?,?,?,?,?,?)", 
-                         (user_name, d_in.strftime('%Y-%m-%d'), w_in, f_cat, s_det, inc, exp, sav, img))
+                         (user_name, d_in.strftime('%Y-%m-%d'), w_in, final_cat, s_detail, inc, exp, sav, img))
             conn.commit(); st.rerun()
 
+# --- TAB 2: กระเป๋าเงิน ---
 with tab2:
     st.markdown("### 🏦 ยอดเงินคงเหลือ")
     w_cols = st.columns(3)
-    for i, w_n in enumerate(["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"]):
-        bal = df[df['wallet'] == w_n].apply(lambda x: x['income'] - x['expense'] - x['savings'], axis=1).sum() if not df.empty else 0
-        w_cols[i].metric(w_n, f"{bal:,.2f} ฿")
+    wallets = ["เงินสด 💵", "เงินฝากธนาคาร 🏦", "บัตรเครดิต 💳"]
+    for i, w_name in enumerate(wallets):
+        bal = df[df['wallet'] == w_name].apply(lambda x: x['income'] - x['expense'] - x['savings'], axis=1).sum() if not df.empty else 0
+        w_cols[i].metric(w_name, f"{bal:,.2f} ฿")
 
+# --- TAB 3: วิเคราะห์ ---
 with tab3:
-    st.markdown("### 📊 วิเคราะห์และงบประมาณ")
-    # งบประมาณ 1,000.-
-    curr_m = datetime.now().strftime('%Y-%m')
-    m_exp = df[df['date'].dt.strftime('%Y-%m') == curr_m]['expense'].sum() if not df.empty else 0
-    st.write(f"**💰 งบประมาณเดือนนี้: {m_exp:,.2f} / 1,000.00 ฿**")
-    st.progress(min(m_exp/1000.0, 1.0))
-    if m_exp >= 900: st.markdown("<p style='color:red;'>🙀ทาสหยุดช้อปได้แล้ว! อาหารแมวจะหมดแล้วนะ!</p>", unsafe_allow_html=True)
-    
+    st.markdown("### 📊 วิเคราะห์และกราฟ")
     if not df.empty:
-        # กราฟแท่งเปรียบเทียบ (ภาษาไทย)
-        df_sorted = df.sort_values('date')
-        df_sorted['เดือน/ปี'] = df_sorted['date'].dt.strftime('%m/%Y')
-        m_stats = df_sorted.groupby('เดือน/ปี')[['income', 'expense']].sum().reset_index().rename(columns={'income':'รายรับ','expense':'รายจ่าย'})
-        st.plotly_chart(px.bar(m_stats, x='เดือน/ปี', y=['รายรับ', 'รายจ่าย'], barmode='group', color_discrete_map={'รายรับ':'#FFB7CE','รายจ่าย':'#B2E2F2'}), use_container_width=True)
-        # กราฟวงกลม
-        st.plotly_chart(px.pie(df[df['expense']>0], values='expense', names='category', title="🍱 รายจ่ายแยกหมวดหมู่"), use_container_width=True)
-        st.plotly_chart(px.pie(df[df['income']>0], values='income', names='category', title="💰 รายรับแยกหมวดหมู่"), use_container_width=True)
+        # 1. กราฟแท่ง (ปรับสเกลให้แคบลงอัตโนมัติ)
+        df['Month-Year'] = df['date'].dt.strftime('%m/%Y')
+        m_df = df.groupby('Month-Year')[['income', 'expense']].sum().reset_index()
+        m_df = m_df.rename(columns={'income': 'รายรับ', 'expense': 'รายจ่าย', 'Month-Year': 'เดือน/ปี'})
+        
+        fig_bar = px.bar(m_df, x='เดือน/ปี', y=['รายรับ', 'รายจ่าย'], barmode='group', 
+                         color_discrete_map={'รายรับ':'#FFB7CE','รายจ่าย':'#B2E2F2'})
+        fig_bar.update_layout(yaxis=dict(range=[0, max(m_df['รายรับ'].max(), m_df['รายจ่าย'].max()) * 1.2])) # ปรับสเกลให้มองเห็นยอดน้อยๆ ได้ชัดขึ้น
+        st.plotly_chart(fig_bar, use_container_width=True)
 
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("#### 💰 รายรับแยกหมวดหมู่")
+            inc_df = df[df['income'] > 0]
+            if not inc_df.empty:
+                st.plotly_chart(px.pie(inc_df, values='income', names='category', hole=0.4), use_container_width=True)
+        with c2:
+            st.markdown("#### 🍱 รายจ่ายแยกหมวดหมู่")
+            exp_df = df[df['expense'] > 0]
+            if not exp_df.empty:
+                st.plotly_chart(px.pie(exp_df, values='expense', names='category', hole=0.4), use_container_width=True)
+    else: st.info("ยังไม่มีข้อมูลเมี๊ยว")
+
+# --- TAB 4: เป้าหมาย (Multi-Goal) ---
 with tab4:
-    st.markdown("### 🎯 เป้าหมายชีวิต")
-    g_df = pd.read_sql(f"SELECT * FROM goals WHERE user_id='{user_name}'", conn)
-    c_g1, c_g2 = st.columns([1, 1.5])
-    with c_g1:
-        gn = st.text_input("ชื่อเป้าหมาย")
-        ga = st.number_input("ยอดเงิน", min_value=0.0)
+    st.markdown("### 🎯 เป้าหมายชีวิตทาสแมว")
+    g_col1, g_col2 = st.columns([1, 1.5])
+    with g_col1:
+        st.write("🚩 เพิ่มเป้าหมายใหม่")
+        new_gn = st.text_input("ชื่อเป้าหมาย")
+        new_ga = st.number_input("ยอดเงินเป้าหมาย", min_value=0.0, key="new_goal_amt")
         if st.button("➕ เพิ่มเป้าหมาย"):
-            conn.execute("INSERT INTO goals (user_id, goal_name, goal_amount) VALUES (?,?,?)", (user_name, gn, ga))
+            conn.execute("INSERT INTO goals (user_id, goal_name, goal_amount) VALUES (?,?,?)", (user_name, new_gn, new_ga))
             conn.commit(); st.rerun()
-    with c_g2:
-        for idx, r in g_df.iterrows():
-            with st.expander(f"📌 {r['goal_name']}"):
-                p = min(df['savings'].sum() / r['goal_amount'], 1.0) if not df.empty and r['goal_amount'] > 0 else 0
-                st.progress(p)
-                st.write(f"เก็บได้แล้ว {df['savings'].sum():,.0f} / {r['goal_amount']:,.0f} ฿")
-                if st.button("🗑️ ลบเป้าหมาย", key=f"dg_{r['id']}"):
-                    conn.execute("DELETE FROM goals WHERE id=?", (r['id'],))
+    
+    with g_col2:
+        st.write("🏆 รายการเป้าหมาย")
+        goals_df = pd.read_sql(f"SELECT * FROM goals WHERE user_id='{user_name}'", conn)
+        total_save = df['savings'].sum() if not df.empty else 0
+        for idx, row in goals_df.iterrows():
+            with st.expander(f"📌 {row['goal_name']}"):
+                prog = min(total_save / row['goal_amount'], 1.0) if row['goal_amount'] > 0 else 0
+                st.progress(prog)
+                st.write(f"เก็บได้แล้ว {total_save:,.0f} / {row['goal_amount']:,.0f} ฿ (สำเร็จ {prog*100:.1f}%)")
+                
+                ce1, ce2 = st.columns(2)
+                if ce1.button("🗑️ ลบเป้าหมาย", key=f"del_g_{row['id']}"):
+                    conn.execute("DELETE FROM goals WHERE id=?", (row['id'],))
                     conn.commit(); st.rerun()
+                # (การแก้ไขเป้าหมายทำได้ผ่านการลบแล้วเพิ่มใหม่เพื่อความเสถียรของโค้ด)
 
+# --- TAB 5: ประวัติและแก้ไข ---
 with tab5:
-    st.markdown("### 📖 ประวัติและแก้ไข")
+    st.markdown("### 📖 ประวัติและแก้ไขรายการ")
     if not df.empty:
         df_sh = df.sort_values(by='id', ascending=False)
         st.dataframe(df_sh.drop(columns=['user_id', 'receipt_img']), use_container_width=True)
-        sid = st.selectbox("เลือก ID รายการ:", df_sh['id'].tolist())
-        row = df[df['id'] == sid].iloc[0]
         
-        ce1, ce2 = st.columns(2)
-        with ce1:
-            ed = st.date_input("แก้ไขวัน", row['date'])
-            ev = st.number_input("แก้ไขยอดเงิน", value=float(max(row['income'], row['expense'], row['savings'])))
-            if row['receipt_img']: st.image(row['receipt_img'], width=200, caption="ใบเสร็จปัจจุบัน")
-        with ce2:
-            ec = st.text_input("แก้ไขหมวดหมู่", value=row['category'])
-            es = st.text_input("แก้ไขรายละเอียด", value=row['sub_category'])
-            nu = st.file_uploader("เปลี่ยนใบเสร็จ", type=['jpg', 'png'])
+        st.markdown("---")
+        sel_id = st.selectbox("เลือก ID รายการที่ต้องการแก้ไข/ลบ:", df_sh['id'].tolist())
+        r = df[df['id'] == sel_id].iloc[0]
+        
+        col_e1, col_e2 = st.columns(2)
+        with col_e1:
+            e_date = st.date_input("แก้ไขวัน", r['date'])
+            e_amt = st.number_input("แก้ไขเงิน", value=float(max(r['income'], r['expense'], r['savings'])))
+            e_img = st.file_uploader("อัปโหลดใบเสร็จใหม่", type=['jpg', 'png'])
+        with col_e2:
+            e_cat = st.text_input("แก้ไขหมวดหมู่", value=r['category'])
+            e_sub = st.text_input("แก้ไขรายละเอียด", value=r['sub_category'])
+            if r['receipt_img']: st.image(r['receipt_img'], width=200, caption="ใบเสร็จปัจจุบัน")
 
-        if st.button("✅ ยืนยันแก้ไข"):
-            ni, ne, ns = (ev,0,0) if row['income']>0 else (0,ev,0) if row['expense']>0 else (0,0,ev)
-            n_img = nu.getvalue() if nu else row['receipt_img']
+        b1, b2 = st.columns(2)
+        if b1.button("✅ ยืนยันการแก้ไขทั้งหมด"):
+            new_img = e_img.getvalue() if e_img else r['receipt_img']
+            ni, ne, ns = (e_amt,0,0) if r['income']>0 else (0,e_amt,0) if r['expense']>0 else (0,0,e_amt)
             conn.execute("UPDATE records SET date=?, income=?, expense=?, savings=?, category=?, sub_category=?, receipt_img=? WHERE id=?", 
-                         (ed.strftime('%Y-%m-%d'), ni, ne, ns, ec, es, n_img, sid))
-            conn.commit(); st.success("แก้ไขแล้ว!"); st.rerun()
+                         (e_date.strftime('%Y-%m-%d'), ni, ne, ns, e_cat, e_sub, new_img, sel_id))
+            conn.commit(); st.success("แก้ไขข้อมูลแล้ว!"); st.rerun()
         
-        if st.button("🗑️ ลบรายการนี้"):
-            conn.execute("DELETE FROM records WHERE id=?", (sid,))
-            conn.commit() # แก้ไขจาก co เป็น conn.commit() แล้วเมี๊ยวว!
-            st.warning("ลบรายการแล้ว!"); st.rerun()
+        if b2.button("🗑️ ลบรายการนี้ทิ้ง"):
+            conn.execute("DELETE FROM records WHERE id=?", (sel_id,))
+            conn.commit(); st.warning("ลบรายการแล้ว!"); st.rerun()
 
 st.markdown("---")
 if st.button("🚪 ออกจากระบบ"): st.session_state.logged_in = False; st.rerun()
