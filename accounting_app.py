@@ -5,6 +5,7 @@ import plotly.express as px
 from datetime import datetime
 import io
 from PIL import Image
+import base64
 
 # --- 1. ตั้งค่าหน้าเว็บ ---
 st.set_page_config(page_title="Meow Wallet Ultimate", layout="wide", page_icon="🐾")
@@ -20,6 +21,9 @@ st.markdown("""
     .main-title { color: #FF69B4; text-align: center; font-size: 40px; font-weight: bold; padding: 15px; }
     div[data-testid="stMetric"] { background: white !important; border-radius: 15px; border: 2px solid #FFD1DC !important; padding: 15px; }
     .stButton>button { border-radius: 10px; }
+    /* ปรับแต่งตารางให้แสดงรูปภาพสวยงาม */
+    table { width: 100%; border-collapse: collapse; }
+    th { background-color: #FFD1DC !important; color: #2D2D2D !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -37,6 +41,17 @@ def init_db():
         conn.commit()
 
 init_db()
+
+# ฟังก์ชันแปลงรูปภาพจากฐานข้อมูลเป็น HTML สำหรับแสดงในตาราง
+def get_image_download_link(img_bytes):
+    if img_bytes is None:
+        return "ไม่มีใบเสร็จ"
+    try:
+        encoded = base64.b64encode(img_bytes).decode()
+        # แสดงรูปขนาดเล็กในตาราง
+        return f'<img src="data:image/png;base64,{encoded}" width="50" style="border-radius:5px;">'
+    except:
+        return "ไฟล์เสีย"
 
 # --- 3. ระบบ Session ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
@@ -112,11 +127,10 @@ with tab2:
         cols = [c_w1, c_w2, c_w3]
         cols[i].metric(w, f"{bal:,.2f} ฿")
 
-# --- TAB 3: วิเคราะห์ (แยกส่วนและแก้ไขแผนภูมิ) ---
+# --- TAB 3: วิเคราะห์ ---
 with tab3:
     st.markdown("### 📊 วิเคราะห์การเงินรายเดือน")
     if not df.empty:
-        # 1. กราฟแท่งเปรียบเทียบ รายรับ - รายจ่าย
         monthly_stats = df.groupby('เดือน')[['income', 'expense']].sum().reset_index()
         monthly_stats = monthly_stats.rename(columns={'income': 'รายรับ', 'expense': 'รายจ่าย'})
         fig_bar = px.bar(monthly_stats, x='เดือน', y=['รายรับ', 'รายจ่าย'], 
@@ -126,7 +140,6 @@ with tab3:
 
         st.markdown("---")
         
-        # 2. แผนภูมิวงกลมแยกหมวดหมู่
         col_a, col_b = st.columns(2)
         with col_a:
             inc_data = df[df['income'] > 0].groupby('category')['income'].sum().reset_index()
@@ -150,7 +163,7 @@ with tab3:
     else:
         st.info("บันทึกข้อมูลก่อนเพื่อดูการวิเคราะห์เมี๊ยวว")
 
-# --- TAB 4: การออม (แยกออกมาเป็นสัดส่วน) ---
+# --- TAB 4: การออม ---
 with tab4:
     st.markdown("### 🎯 การติดตามการออม")
     if not df.empty:
@@ -168,36 +181,47 @@ with tab4:
             progress_val = min(total_save / total_in, 1.0)
             st.progress(progress_val)
             st.write(f"คุณออมเงินไปแล้ว {percent_save:.1f}% ของรายรับทั้งหมดที่มีเมี๊ยวว!")
-            
-            # แผนภูมิวงกลมเฉพาะเงินออม
-            sav_data = df[df['savings'] > 0].groupby('category')['savings'].sum().reset_index()
-            if not sav_data.empty:
-                st.markdown("---")
-                st.markdown("#### 🐷 รายละเอียดการออมแยกหมวดหมู่")
-                fig_sav = px.pie(sav_data, names='category', values='savings', 
-                                 color_discrete_sequence=['#C5E1A5', '#81C784', '#AED581'])
-                st.plotly_chart(fig_sav, use_container_width=True)
         else:
             st.info("กรุณาบันทึก 'รายรับ' เพื่อคำนวณสัดส่วนเปอร์เซ็นต์การออมครับ")
     else:
         st.info("ยังไม่มีข้อมูลการออมเมี๊ยวว")
 
-# --- TAB 5: ประวัติและแก้ไข ---
+# --- TAB 5: ประวัติและแก้ไข (ฉบับแปลไทยสมบูรณ์ + แสดงใบเสร็จในตาราง) ---
 with tab5:
     st.markdown("### 📖 ประวัติและจัดการรายการ")
     if not df.empty:
-        df_display = df.sort_values(by='id', ascending=False)
-        st.dataframe(df_display.drop(columns=['user_id', 'receipt_img']), use_container_width=True)
+        # เตรียมข้อมูลสำหรับตารางแปลไทย
+        df_thai = df.copy()
+        df_thai['ใบเสร็จ'] = df_thai['receipt_img'].apply(get_image_download_link)
+        
+        # เลือกคอลัมน์และเปลี่ยนชื่อเป็นภาษาไทย
+        df_thai = df_thai.rename(columns={
+            'id': 'ลำดับ',
+            'date': 'วันที่',
+            'wallet': 'ช่องทางเงิน',
+            'category': 'หมวดหมู่',
+            'sub_category': 'รายละเอียด',
+            'income': 'รายรับ (฿)',
+            'expense': 'รายจ่าย (฿)',
+            'savings': 'เงินออม (฿)'
+        })
+        
+        # จัดเรียงลำดับใหม่และเลือกคอลัมน์ที่ต้องการแสดง
+        df_display = df_thai[['ลำดับ', 'ใบเสร็จ', 'วันที่', 'ช่องทางเงิน', 'หมวดหมู่', 'รายละเอียด', 'รายรับ (฿)', 'รายจ่าย (฿)', 'เงินออม (฿)']]
+        df_display = df_display.sort_values(by='ลำดับ', ascending=False)
+        
+        # แสดงตารางแบบ HTML เพื่อให้รูปภาพและภาษาไทยแสดงผลถูกต้อง
+        st.write(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
         
         st.markdown("---")
         st.markdown("#### 🛠️ จัดการรายการและดูใบเสร็จ")
-        selected_id = st.selectbox("เลือก ID รายการที่ต้องการดู/จัดการ:", df_display['id'].tolist())
+        selected_id = st.selectbox("เลือก ลำดับ (ID) รายการที่ต้องการดูรูปใหญ่/จัดการ:", df_display['ลำดับ'].tolist())
         
         if selected_id:
             row = df[df['id'] == selected_id].iloc[0]
             if row['receipt_img'] is not None:
-                st.markdown("##### 📸 ใบเสร็จ")
-                st.image(row['receipt_img'], width=300)
+                st.markdown("##### 📸 รูปใบเสร็จขนาดใหญ่")
+                st.image(row['receipt_img'], width=400)
             
             col_e1, col_e2 = st.columns(2)
             with col_e1:
@@ -224,7 +248,7 @@ with tab5:
                     c = conn.cursor()
                     c.execute("DELETE FROM records WHERE id=?", (int(selected_id),))
                     conn.commit()
-                st.warning(f"ลบรายการ ID {selected_id} เรียบร้อยแล้ว")
+                st.warning(f"ลบรายการลำดับที่ {selected_id} เรียบร้อยแล้ว")
                 st.rerun()
     else:
-        st.info("ยังไม่มีข้อมูลในประวัติ")
+        st.info("ยังไม่มีข้อมูลในประวัติเมี๊ยวว")
