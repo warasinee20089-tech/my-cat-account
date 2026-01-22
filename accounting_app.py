@@ -23,7 +23,7 @@ st.markdown("""
 
 # --- 2. DATABASE ENGINE ---
 def init_db():
-    conn = sqlite3.connect('meow_stable_v57.db', check_same_thread=False)
+    conn = sqlite3.connect('meow_stable_v58.db', check_same_thread=False)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS records 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, date TEXT, 
