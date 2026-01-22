@@ -187,3 +187,4 @@ with tab5:
                 st.rerun()
     else:
         st.info("ยังไม่มีข้อมูลในประวัติ")
+
